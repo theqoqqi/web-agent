@@ -1,0 +1,24 @@
+[Unit]
+Description=Antigravity ACP NDJSON-to-WebSocket Bridge
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/web-agent
+Environment=PATH=/root/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=ACP_BRIDGE_HOST=127.0.0.1
+Environment=ACP_BRIDGE_PORT=3001
+Environment=ACP_BRIDGE_WS_PATH=/ws
+Environment=ACP_COMMAND=agy
+Environment=ACP_ARGS=acp
+Environment=ACP_SANDBOX_DIR=/root/acp-sandbox
+Environment=ACP_SHUTDOWN_GRACE_MS=3000
+ExecStart=/usr/bin/node /opt/web-agent/dist/index.js
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=10
+
+[Install]
+WantedBy=multi-user.target

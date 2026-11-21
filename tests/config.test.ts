@@ -1,0 +1,170 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, describe, expect, test } from "vitest";
+import { resolveBridgeConfig } from "../src/config.js";
+
+describe("resolveBridgeConfig", () => {
+    const tempDirs: string[] = [];
+
+    function createTempDir(): string {
+        const dir = mkdtempSync(join(tmpdir(), "acp-config-test-"));
+        tempDirs.push(dir);
+        return dir;
+    }
+
+    afterEach(() => {
+        while (tempDirs.length > 0) {
+            const dir = tempDirs.pop();
+            if (dir) {
+                rmSync(dir, {
+                    recursive: true,
+                    force: true,
+                });
+            }
+        }
+    });
+
+    test("applies secure loopback defaults when minimal valid inputs are provided", () => {
+        const sandboxDir = createTempDir();
+
+        const config = resolveBridgeConfig({
+            env: {
+                ACP_SANDBOX_DIR: sandboxDir,
+            },
+        });
+
+        expect(config).toEqual({
+            host: "127.0.0.1",
+            port: 3001,
+            wsPath: "/ws",
+            command: "agy",
+            args: [
+                "acp",
+            ],
+            defaultCwd: sandboxDir,
+            shutdownGraceMs: 3000,
+            maxLineBytes: 16 * 1024 * 1024,
+            heartbeatPingIntervalMs: 30000,
+        });
+    });
+
+    test("reads env values and lets explicit overrides take precedence", () => {
+        const envDir = createTempDir();
+        const overrideDir = createTempDir();
+
+        const config = resolveBridgeConfig({
+            env: {
+                ACP_BRIDGE_HOST: "localhost",
+                ACP_BRIDGE_PORT: "4010",
+                ACP_BRIDGE_WS_PATH: "/acp",
+                ACP_COMMAND: "/usr/local/bin/agy",
+                ACP_ARGS: "acp --sandbox",
+                ACP_SANDBOX_DIR: envDir,
+                ACP_SHUTDOWN_GRACE_MS: "1500",
+                ACP_MAX_LINE_BYTES: "4096",
+                ACP_HEARTBEAT_MS: "0",
+            },
+            overrides: {
+                port: 4020,
+                defaultCwd: overrideDir,
+            },
+        });
+
+        expect(config).toEqual({
+            host: "localhost",
+            port: 4020,
+            wsPath: "/acp",
+            command: "/usr/local/bin/agy",
+            args: [
+                "acp",
+                "--sandbox",
+            ],
+            defaultCwd: overrideDir,
+            shutdownGraceMs: 1500,
+            maxLineBytes: 4096,
+            heartbeatPingIntervalMs: 0,
+        });
+    });
+
+    test.each([
+        "0.0.0.0",
+        "172.29.172.1",
+        "example.com",
+        "",
+    ])("throws on non-loopback host %s", (host) => {
+        const sandboxDir = createTempDir();
+
+        expect(() =>
+            resolveBridgeConfig({
+                env: {
+                    ACP_BRIDGE_HOST: host,
+                    ACP_SANDBOX_DIR: sandboxDir,
+                },
+            }),
+        ).toThrow(/loopback|host/i);
+    });
+
+    test.each([
+        "0",
+        "-1",
+        "65536",
+        "NaN",
+        "3001.5",
+        "abc",
+    ])("throws on invalid port %s", (port) => {
+        const sandboxDir = createTempDir();
+
+        expect(() =>
+            resolveBridgeConfig({
+                env: {
+                    ACP_BRIDGE_PORT: port,
+                    ACP_SANDBOX_DIR: sandboxDir,
+                },
+            }),
+        ).toThrow(/port/i);
+    });
+
+    test("throws when command is empty", () => {
+        const sandboxDir = createTempDir();
+
+        expect(() =>
+            resolveBridgeConfig({
+                env: {
+                    ACP_COMMAND: "   ",
+                    ACP_SANDBOX_DIR: sandboxDir,
+                },
+            }),
+        ).toThrow(/command/i);
+    });
+
+    test("throws when defaultCwd is missing", () => {
+        expect(() =>
+            resolveBridgeConfig({
+                env: {},
+            }),
+        ).toThrow(/defaultCwd|directory/i);
+    });
+
+    test("throws when defaultCwd does not exist or is a file", () => {
+        const dir = createTempDir();
+        const filePath = join(dir, "not-a-dir.txt");
+        writeFileSync(filePath, "hello", "utf8");
+
+        expect(() =>
+            resolveBridgeConfig({
+                env: {
+                    ACP_SANDBOX_DIR: join(dir, "missing"),
+                },
+            }),
+        ).toThrow(/directory/i);
+
+        expect(() =>
+            resolveBridgeConfig({
+                env: {
+                    ACP_SANDBOX_DIR: filePath,
+                },
+            }),
+        ).toThrow(/directory/i);
+    });
+});
