@@ -198,4 +198,213 @@ describe("patchAcpUiHtml", () => {
         expect(writtenOnce).toBe(firstPass);
         expect(patchAcpUiFile(filePath)).toBe(false);
     });
+
+    test("rewrites file:// links and ToolCallCard locations into /files URLs and intercepts direct clicks", () => {
+        const patched = patchAcpUiHtml(SAMPLE_HTML);
+        const scriptCode = extractInjectedScript(patched);
+
+        interface FakeElement {
+            tagName: string;
+            attrs: Record<string, string>;
+            children: FakeElement[];
+            textContent: string;
+            value?: string;
+            matchesSelector: (selector: string) => boolean;
+            getAttribute: (name: string) => string | null;
+            setAttribute: (name: string, value: string) => void;
+            hasAttribute: (name: string) => boolean;
+            appendChild: (child: FakeElement) => FakeElement;
+            closest: (selector: string) => FakeElement | null;
+        }
+
+        function createFakeElement(
+            tagName: string,
+            attrs: Record<string, string> = {},
+            textContent: string = "",
+            matchesFn: (el: FakeElement, sel: string) => boolean = () => false,
+        ): FakeElement {
+            const el: FakeElement = {
+                tagName: tagName.toUpperCase(),
+                attrs: {
+                    ...attrs,
+                },
+                children: [],
+                textContent,
+                value: attrs.value,
+                matchesSelector: (sel: string) => matchesFn(el, sel),
+                getAttribute: (name: string) => el.attrs[name] ?? null,
+                setAttribute: (name: string, val: string) => {
+                    el.attrs[name] = val;
+                },
+                hasAttribute: (name: string) => Object.prototype.hasOwnProperty.call(el.attrs, name),
+                appendChild: (child: FakeElement) => {
+                    el.children.push(child);
+                    el.textContent += child.textContent;
+                    return child;
+                },
+                closest: (sel: string) => (el.matchesSelector(sel) ? el : null),
+            };
+            return el;
+        }
+
+        const linkMatches = (el: FakeElement, sel: string): boolean => {
+            if (sel === 'a[href^="file://"]') {
+                return el.tagName === "A" && (el.attrs.href ?? "").startsWith("file://");
+            }
+            return false;
+        };
+
+        const cwdInput = createFakeElement("input", {
+            class: "cwd-input",
+            value: "/root/project",
+        });
+        const chatFileLink = createFakeElement(
+            "a",
+            {
+                href: "file:///root/app.ts#L10-L20",
+            },
+            "app.ts",
+            linkMatches,
+        );
+        const toolAbsLocation = createFakeElement(
+            "div",
+            {
+                class: "location",
+            },
+            "📁 /root/app.ts",
+        );
+        const toolRelLocation = createFakeElement(
+            "div",
+            {
+                class: "location",
+            },
+            "📁 src/main.ts",
+        );
+        const dynamicUnrewrittenLink = createFakeElement(
+            "a",
+            {
+                href: "file:///root/new.md#L5",
+            },
+            "new.md",
+            linkMatches,
+        );
+
+        const allElements: FakeElement[] = [
+            cwdInput,
+            chatFileLink,
+            toolAbsLocation,
+            toolRelLocation,
+        ];
+        const listeners: Record<string, Array<(event: unknown) => void>> = {};
+        const observerState: {
+            callback: (() => void) | null;
+        } = {
+            callback: null,
+        };
+        const openedUrls: Array<{
+            url: string;
+            target: string;
+            features: string;
+        }> = [];
+
+        class FakeMutationObserver {
+            public constructor(cb: () => void) {
+                observerState.callback = cb;
+            }
+            public observe(): void {}
+        }
+
+        const fakeDocument = {
+            readyState: "complete",
+            body: {},
+            documentElement: {},
+            querySelector: (sel: string) => {
+                if (sel === ".cwd-input") {
+                    return cwdInput;
+                }
+                return null;
+            },
+            querySelectorAll: (sel: string) => {
+                if (sel === 'a[href^="file://"]') {
+                    return allElements.filter((el) => linkMatches(el, sel));
+                }
+                if (sel === ".tool-locations > .location:not([data-acp-file-linked])") {
+                    return [
+                        toolAbsLocation,
+                        toolRelLocation,
+                    ].filter((el) => !el.hasAttribute("data-acp-file-linked"));
+                }
+                return [];
+            },
+            createElement: (tag: string) => createFakeElement(tag),
+            addEventListener: (type: string, cb: (event: unknown) => void) => {
+                listeners[type] = listeners[type] ?? [];
+                listeners[type].push(cb);
+            },
+        };
+
+        const fakeWindow = {
+            open: (url: string, target: string, features: string) => {
+                openedUrls.push({
+                    url,
+                    target,
+                    features,
+                });
+            },
+        };
+
+        vm.runInNewContext(scriptCode, {
+            crypto: {
+                getRandomValues: crypto.getRandomValues.bind(crypto),
+            },
+            localStorage: createMemoryStorage(),
+            location: {
+                protocol: "http:",
+                host: "172.29.172.1:7682",
+            },
+            document: fakeDocument,
+            window: fakeWindow,
+            MutationObserver: FakeMutationObserver,
+        });
+
+        expect(chatFileLink.getAttribute("href")).toBe("/files?path=%2Froot%2Fapp.ts#L10-L20");
+        expect(chatFileLink.getAttribute("target")).toBe("_blank");
+        expect(chatFileLink.getAttribute("rel")).toBe("noopener");
+        expect(chatFileLink.getAttribute("data-acp-file-linked")).toBe("1");
+
+        expect(toolAbsLocation.getAttribute("data-acp-file-linked")).toBe("1");
+        expect(toolAbsLocation.children).toHaveLength(1);
+        expect(toolAbsLocation.children[0]?.tagName).toBe("A");
+        expect(toolAbsLocation.children[0]?.getAttribute("href")).toBe("/files?path=%2Froot%2Fapp.ts");
+        expect(toolAbsLocation.children[0]?.getAttribute("target")).toBe("_blank");
+
+        expect(toolRelLocation.getAttribute("data-acp-file-linked")).toBe("1");
+        expect(toolRelLocation.children[0]?.getAttribute("href")).toBe(
+            "/files?path=%2Froot%2Fproject%2Fsrc%2Fmain.ts",
+        );
+
+        expect(observerState.callback).not.toBeNull();
+        observerState.callback?.();
+        expect(toolAbsLocation.children).toHaveLength(1);
+
+        let prevented = false;
+        const clickHandlers = listeners.click ?? [];
+        for (const handler of clickHandlers) {
+            handler({
+                target: dynamicUnrewrittenLink,
+                preventDefault: () => {
+                    prevented = true;
+                },
+            });
+        }
+
+        expect(prevented).toBe(true);
+        expect(openedUrls).toEqual([
+            {
+                url: "/files?path=%2Froot%2Fnew.md#L5",
+                target: "_blank",
+                features: "noopener",
+            },
+        ]);
+    });
 });

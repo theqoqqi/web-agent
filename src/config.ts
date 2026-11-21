@@ -11,6 +11,8 @@ const DEFAULT_ARGS = [
 const DEFAULT_SHUTDOWN_GRACE_MS = 3000;
 const DEFAULT_MAX_LINE_BYTES = 16 * 1024 * 1024;
 const DEFAULT_HEARTBEAT_PING_INTERVAL_MS = 30000;
+const DEFAULT_MAX_FILE_BYTES = 1024 * 1024;
+const DEFAULT_VIEWER_SNIPPET_BYTES = 100 * 1024;
 const LOOPBACK_HOSTS = new Set([
     "127.0.0.1",
     "::1",
@@ -27,6 +29,8 @@ export interface BridgeConfig {
     shutdownGraceMs: number;
     maxLineBytes: number;
     heartbeatPingIntervalMs: number;
+    maxFileBytes: number;
+    viewerSnippetBytes: number;
 }
 
 export interface ResolveBridgeConfigInput {
@@ -64,6 +68,16 @@ export function resolveBridgeConfig(input: ResolveBridgeConfigInput = {}): Bridg
         "heartbeatPingIntervalMs",
         0,
     );
+    const maxFileBytes = resolveInteger(
+        overrides.maxFileBytes ?? env.ACP_VIEWER_MAX_BYTES ?? DEFAULT_MAX_FILE_BYTES,
+        "maxFileBytes",
+        1,
+    );
+    const viewerSnippetBytes = resolveInteger(
+        overrides.viewerSnippetBytes ?? env.ACP_VIEWER_SNIPPET_BYTES ?? DEFAULT_VIEWER_SNIPPET_BYTES,
+        "viewerSnippetBytes",
+        1,
+    );
 
     return {
         host,
@@ -75,6 +89,8 @@ export function resolveBridgeConfig(input: ResolveBridgeConfigInput = {}): Bridg
         shutdownGraceMs,
         maxLineBytes,
         heartbeatPingIntervalMs,
+        maxFileBytes,
+        viewerSnippetBytes,
     };
 }
 

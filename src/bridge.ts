@@ -4,6 +4,7 @@ import type { Duplex } from "node:stream";
 import { StringDecoder } from "node:string_decoder";
 import { WebSocket, WebSocketServer, type RawData } from "ws";
 import type { BridgeConfig } from "./config.js";
+import { handleFileViewerRequest } from "./file-viewer/handler.js";
 import { normalizeClientFrame } from "./message-filter.js";
 import { NdjsonLineDecoder } from "./ndjson-framer.js";
 
@@ -46,9 +47,22 @@ export async function createAcpWsBridge(
     const childEnv = options.env ?? process.env;
     const activeCleanups = new Set<() => Promise<void>>();
 
-    const httpServer = createServer((_req, res) => {
-        res.statusCode = 404;
-        res.end("Not Found");
+    const httpServer = createServer((req, res) => {
+        void handleFileViewerRequest(req, res, config, logger)
+            .then((handled) => {
+                if (!handled && !res.headersSent) {
+                    res.statusCode = 404;
+                    res.end("Not Found");
+                }
+            })
+            .catch((error: unknown) => {
+                const message = error instanceof Error ? error.message : String(error);
+                logger.error(`[acp-bridge] HTTP request error: ${message}`);
+                if (!res.headersSent) {
+                    res.statusCode = 500;
+                    res.end("Internal Server Error");
+                }
+            });
     });
 
     const wss = new WebSocketServer({
@@ -219,6 +233,7 @@ async function closeBridgeServer(
                 }
                 resolve();
             });
+            httpServer.closeIdleConnections();
         });
     });
 }

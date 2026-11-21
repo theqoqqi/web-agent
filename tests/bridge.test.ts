@@ -18,6 +18,8 @@ function createBaseConfig(sandboxDir: string, args: string[], command: string = 
         shutdownGraceMs: 150,
         maxLineBytes: 1024 * 1024,
         heartbeatPingIntervalMs: 0,
+        maxFileBytes: 1024 * 1024,
+        viewerSnippetBytes: 100 * 1024,
     };
 }
 

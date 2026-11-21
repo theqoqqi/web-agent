@@ -46,6 +46,8 @@ describe("resolveBridgeConfig", () => {
             shutdownGraceMs: 3000,
             maxLineBytes: 16 * 1024 * 1024,
             heartbeatPingIntervalMs: 30000,
+            maxFileBytes: 1024 * 1024,
+            viewerSnippetBytes: 100 * 1024,
         });
     });
 
@@ -64,6 +66,8 @@ describe("resolveBridgeConfig", () => {
                 ACP_SHUTDOWN_GRACE_MS: "1500",
                 ACP_MAX_LINE_BYTES: "4096",
                 ACP_HEARTBEAT_MS: "0",
+                ACP_VIEWER_MAX_BYTES: "2048",
+                ACP_VIEWER_SNIPPET_BYTES: "512",
             },
             overrides: {
                 port: 4020,
@@ -84,7 +88,31 @@ describe("resolveBridgeConfig", () => {
             shutdownGraceMs: 1500,
             maxLineBytes: 4096,
             heartbeatPingIntervalMs: 0,
+            maxFileBytes: 2048,
+            viewerSnippetBytes: 512,
         });
+    });
+
+    test("throws when maxFileBytes or viewerSnippetBytes is not positive", () => {
+        const sandboxDir = createTempDir();
+
+        expect(() =>
+            resolveBridgeConfig({
+                env: {
+                    ACP_SANDBOX_DIR: sandboxDir,
+                    ACP_VIEWER_MAX_BYTES: "0",
+                },
+            }),
+        ).toThrow(/maxFileBytes/i);
+
+        expect(() =>
+            resolveBridgeConfig({
+                env: {
+                    ACP_SANDBOX_DIR: sandboxDir,
+                    ACP_VIEWER_SNIPPET_BYTES: "-5",
+                },
+            }),
+        ).toThrow(/viewerSnippetBytes/i);
     });
 
     test.each([
