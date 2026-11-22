@@ -1,6 +1,8 @@
-import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, realpathSync, writeFileSync } from "node:fs";
+import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { afterEach, describe, expect, test } from "vitest";
 import WebSocket from "ws";
 import { createAcpWsBridge } from "../src/bridge.js";
@@ -17,6 +19,9 @@ function createTestConfig(sandboxDir: string): BridgeConfig {
             `
             process.stdin.on("data", (d) => {
                 process.stdout.write(d);
+            });
+            process.stdin.on("end", () => {
+                process.exit(0);
             });
             `,
         ],
@@ -49,12 +54,7 @@ describe("file-viewer HTTP endpoints inside createAcpWsBridge", () => {
         while (tempDirs.length > 0) {
             const dir = tempDirs.pop();
             if (dir) {
-                rmSync(dir, {
-                    recursive: true,
-                    force: true,
-                    maxRetries: 20,
-                    retryDelay: 50,
-                });
+                await removeDirWithRetry(dir);
             }
         }
     });
@@ -166,3 +166,21 @@ describe("file-viewer HTTP endpoints inside createAcpWsBridge", () => {
         });
     });
 });
+
+async function removeDirWithRetry(dirPath: string): Promise<void> {
+    const maxAttempts = 20;
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        try {
+            await rm(dirPath, {
+                recursive: true,
+                force: true,
+            });
+            return;
+        } catch (error) {
+            if (attempt === maxAttempts) {
+                throw error;
+            }
+            await delay(50);
+        }
+    }
+}

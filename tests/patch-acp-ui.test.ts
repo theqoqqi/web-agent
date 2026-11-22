@@ -248,8 +248,8 @@ describe("patchAcpUiHtml", () => {
         }
 
         const linkMatches = (el: FakeElement, sel: string): boolean => {
-            if (sel === 'a[href^="file://"]') {
-                return el.tagName === "A" && (el.attrs.href ?? "").startsWith("file://");
+            if (sel === 'a[href^="file:" i]' || sel === 'a[href^="file://"]') {
+                return el.tagName === "A" && /^file:/i.test(el.attrs.href ?? "");
             }
             return false;
         };
@@ -325,10 +325,10 @@ describe("patchAcpUiHtml", () => {
                 return null;
             },
             querySelectorAll: (sel: string) => {
-                if (sel === 'a[href^="file://"]') {
+                if (sel === 'a[href^="file:" i]' || sel === 'a[href^="file://"]') {
                     return allElements.filter((el) => linkMatches(el, sel));
                 }
-                if (sel === ".tool-locations > .location:not([data-acp-file-linked])") {
+                if (sel.includes(".tool-locations > .location:not([data-acp-file-linked])")) {
                     return [
                         toolAbsLocation,
                         toolRelLocation,
@@ -406,5 +406,194 @@ describe("patchAcpUiHtml", () => {
                 features: "noopener",
             },
         ]);
+    });
+
+    test("handles ChatView .tool-location, single-slash/uppercase file: links, attribute observer, and pointerdown rewrite", () => {
+        const patched = patchAcpUiHtml(SAMPLE_HTML);
+        const scriptCode = extractInjectedScript(patched);
+
+        interface FakeElement {
+            tagName: string;
+            attrs: Record<string, string>;
+            children: FakeElement[];
+            textContent: string;
+            value?: string;
+            getAttribute: (name: string) => string | null;
+            setAttribute: (name: string, value: string) => void;
+            hasAttribute: (name: string) => boolean;
+            appendChild: (child: FakeElement) => FakeElement;
+            closest: (selector: string) => FakeElement | null;
+        }
+
+        function createFakeElement(
+            tagName: string,
+            attrs: Record<string, string> = {},
+            textContent: string = "",
+            matchesFn: (el: FakeElement, sel: string) => boolean = () => false,
+        ): FakeElement {
+            const el: FakeElement = {
+                tagName: tagName.toUpperCase(),
+                attrs: {
+                    ...attrs,
+                },
+                children: [],
+                textContent,
+                value: attrs.value,
+                getAttribute: (name: string) => el.attrs[name] ?? null,
+                setAttribute: (name: string, val: string) => {
+                    el.attrs[name] = val;
+                },
+                hasAttribute: (name: string) => Object.prototype.hasOwnProperty.call(el.attrs, name),
+                appendChild: (child: FakeElement) => {
+                    el.children.push(child);
+                    el.textContent += child.textContent;
+                    return child;
+                },
+                closest: (sel: string) => (matchesFn(el, sel) ? el : null),
+            };
+            return el;
+        }
+
+        const isFileHref = (href: string | undefined): boolean =>
+            typeof href === "string" && /^file:/i.test(href);
+
+        const linkMatches = (el: FakeElement, sel: string): boolean => {
+            if (el.tagName !== "A") {
+                return false;
+            }
+            if (sel === 'a[href^="file:" i]') {
+                return isFileHref(el.attrs.href);
+            }
+            return false;
+        };
+
+        const chatToolLocAbs = createFakeElement(
+            "span",
+            {
+                class: "tool-location",
+            },
+            "/srv/app.ts",
+        );
+        const singleSlashLink = createFakeElement(
+            "a",
+            {
+                href: "file:/root/single.ts#L12",
+            },
+            "single.ts",
+            linkMatches,
+        );
+        const upperCaseLink = createFakeElement(
+            "a",
+            {
+                href: "FILE:///root/Upper.md",
+            },
+            "Upper.md",
+            linkMatches,
+        );
+        const pointerLink = createFakeElement(
+            "a",
+            {
+                href: "file:///root/hover.ts",
+            },
+            "hover.ts",
+            linkMatches,
+        );
+        const relWithoutCwdLink = createFakeElement(
+            "a",
+            {
+                href: "file:demo.md#L2",
+            },
+            "demo.md",
+            linkMatches,
+        );
+
+        const observeOptions: Array<Record<string, unknown>> = [];
+        const listeners: Record<string, Array<(event: unknown) => void>> = {};
+        const openedUrls: string[] = [];
+
+        class CapturingObserver {
+            public constructor(_cb: () => void) {}
+            public observe(_root: unknown, options: Record<string, unknown>): void {
+                observeOptions.push(options);
+            }
+        }
+
+        const allLinks = [
+            singleSlashLink,
+            upperCaseLink,
+            relWithoutCwdLink,
+        ];
+
+        const fakeDocument = {
+            readyState: "complete",
+            body: {},
+            documentElement: {},
+            querySelector: () => null,
+            querySelectorAll: (sel: string) => {
+                if (sel === 'a[href^="file:" i]') {
+                    return allLinks.filter((el) => linkMatches(el, sel));
+                }
+                if (
+                    sel.includes(".tool-location:not([data-acp-file-linked])") &&
+                    sel.includes(".tool-locations > .location:not([data-acp-file-linked])")
+                ) {
+                    return chatToolLocAbs.hasAttribute("data-acp-file-linked")
+                        ? []
+                        : [
+                              chatToolLocAbs,
+                          ];
+                }
+                return [];
+            },
+            createElement: (tag: string) => createFakeElement(tag),
+            addEventListener: (type: string, cb: (event: unknown) => void) => {
+                listeners[type] = listeners[type] ?? [];
+                listeners[type].push(cb);
+            },
+        };
+
+        vm.runInNewContext(scriptCode, {
+            crypto: {
+                getRandomValues: crypto.getRandomValues.bind(crypto),
+            },
+            localStorage: createMemoryStorage(),
+            location: {
+                protocol: "http:",
+                host: "172.29.172.1:7682",
+            },
+            document: fakeDocument,
+            window: {
+                open: (url: string) => {
+                    openedUrls.push(url);
+                },
+            },
+            MutationObserver: CapturingObserver,
+        });
+
+        expect(observeOptions).toEqual([
+            {
+                childList: true,
+                subtree: true,
+                attributes: true,
+                attributeFilter: [
+                    "href",
+                ],
+            },
+        ]);
+
+        expect(singleSlashLink.getAttribute("href")).toBe("/files?path=%2Froot%2Fsingle.ts#L12");
+        expect(upperCaseLink.getAttribute("href")).toBe("/files?path=%2Froot%2FUpper.md");
+        expect(relWithoutCwdLink.getAttribute("href")).toBe("/files?path=demo.md#L2");
+
+        expect(chatToolLocAbs.getAttribute("data-acp-file-linked")).toBe("1");
+        expect(chatToolLocAbs.children[0]?.getAttribute("href")).toBe("/files?path=%2Fsrv%2Fapp.ts");
+
+        for (const handler of listeners.pointerdown ?? []) {
+            handler({
+                target: pointerLink,
+            });
+        }
+        expect(pointerLink.getAttribute("href")).toBe("/files?path=%2Froot%2Fhover.ts");
+        expect(openedUrls).toEqual([]);
     });
 });
