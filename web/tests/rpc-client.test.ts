@@ -175,4 +175,27 @@ describe("AcpRpcClient", () => {
         });
         expect(updates).toHaveLength(1);
     });
+
+    test("вызывает onUnsolicitedResponse при получении ответа без локального pending промиса", () => {
+        const transport = new MockRpcTransport();
+        const unsolicited: unknown[] = [];
+        new AcpRpcClient(transport, {
+            onUnsolicitedResponse: (msg) => {
+                unsolicited.push(msg);
+            },
+        });
+
+        transport.emitIncoming({
+            jsonrpc: "2.0",
+            id: 999,
+            result: { stopReason: "end_turn" },
+        });
+
+        expect(unsolicited).toHaveLength(1);
+        expect(unsolicited[0]).toEqual({
+            jsonrpc: "2.0",
+            id: 999,
+            result: { stopReason: "end_turn" },
+        });
+    });
 });

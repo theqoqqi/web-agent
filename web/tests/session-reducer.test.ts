@@ -374,4 +374,51 @@ describe("sessionReducer", () => {
 
         expect(afterBadChunk).toBe(initial);
     });
+
+    test("не включает isGenerating при реплее истории во время isLoadingSession, но включает при живых чанках", () => {
+        let state = createInitialSessionState("/srv");
+        state = sessionReducer(state, {
+            type: "START_SESSION_LOAD",
+            sessionId: "s-1",
+            cwd: "/srv",
+        });
+
+        expect(state.isLoadingSession).toBe(true);
+        expect(state.isGenerating).toBe(false);
+
+        // Реплей истории во время загрузки сессии
+        state = sessionReducer(state, {
+            type: "SESSION_UPDATE",
+            update: {
+                sessionUpdate: "agent_message_chunk",
+                content: { type: "text", text: "Прошлый ответ" },
+            },
+        });
+        expect(state.isGenerating).toBe(false);
+
+        // Сессия загружена
+        state = sessionReducer(state, {
+            type: "SESSION_READY",
+            sessionId: "s-1",
+            cwd: "/srv",
+        });
+        expect(state.isLoadingSession).toBe(false);
+        expect(state.isGenerating).toBe(false);
+
+        // Приход живого чанка текущей активной генерации
+        state = sessionReducer(state, {
+            type: "SESSION_UPDATE",
+            update: {
+                sessionUpdate: "agent_message_chunk",
+                content: { type: "text", text: "Новый чанк" },
+            },
+        });
+        expect(state.isGenerating).toBe(true);
+
+        // Завершение промпта
+        state = sessionReducer(state, {
+            type: "PROMPT_FINISHED",
+        });
+        expect(state.isGenerating).toBe(false);
+    });
 });

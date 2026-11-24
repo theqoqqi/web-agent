@@ -31,6 +31,8 @@ function createTestConfig(sandboxDir: string): BridgeConfig {
         heartbeatPingIntervalMs: 0,
         maxFileBytes: 1024 * 1024,
         viewerSnippetBytes: 100 * 1024,
+        detachedTimeoutMs: 15 * 60 * 1000,
+        maxReplayBufferLines: 2000,
     };
 }
 

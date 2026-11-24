@@ -13,6 +13,8 @@ const DEFAULT_MAX_LINE_BYTES = 16 * 1024 * 1024;
 const DEFAULT_HEARTBEAT_PING_INTERVAL_MS = 30000;
 const DEFAULT_MAX_FILE_BYTES = 1024 * 1024;
 const DEFAULT_VIEWER_SNIPPET_BYTES = 100 * 1024;
+const DEFAULT_DETACHED_TIMEOUT_MS = 15 * 60 * 1000;
+const DEFAULT_MAX_REPLAY_BUFFER_LINES = 2000;
 const LOOPBACK_HOSTS = new Set([
     "127.0.0.1",
     "::1",
@@ -31,6 +33,8 @@ export interface BridgeConfig {
     heartbeatPingIntervalMs: number;
     maxFileBytes: number;
     viewerSnippetBytes: number;
+    detachedTimeoutMs: number;
+    maxReplayBufferLines: number;
 }
 
 export interface ResolveBridgeConfigInput {
@@ -78,6 +82,18 @@ export function resolveBridgeConfig(input: ResolveBridgeConfigInput = {}): Bridg
         "viewerSnippetBytes",
         1,
     );
+    const detachedTimeoutMs = resolveInteger(
+        overrides.detachedTimeoutMs ?? env.ACP_DETACHED_TIMEOUT_MS ?? DEFAULT_DETACHED_TIMEOUT_MS,
+        "detachedTimeoutMs",
+        0,
+    );
+    const maxReplayBufferLines = resolveInteger(
+        overrides.maxReplayBufferLines ??
+            env.ACP_MAX_REPLAY_BUFFER_LINES ??
+            DEFAULT_MAX_REPLAY_BUFFER_LINES,
+        "maxReplayBufferLines",
+        1,
+    );
 
     return {
         host,
@@ -91,6 +107,8 @@ export function resolveBridgeConfig(input: ResolveBridgeConfigInput = {}): Bridg
         heartbeatPingIntervalMs,
         maxFileBytes,
         viewerSnippetBytes,
+        detachedTimeoutMs,
+        maxReplayBufferLines,
     };
 }
 

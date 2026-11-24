@@ -1,4 +1,5 @@
-import { mkdtempSync, realpathSync, rmSync } from "node:fs";
+import { mkdtempSync, realpathSync } from "node:fs";
+import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -20,6 +21,8 @@ function createBaseConfig(sandboxDir: string, args: string[], command: string = 
         heartbeatPingIntervalMs: 0,
         maxFileBytes: 1024 * 1024,
         viewerSnippetBytes: 100 * 1024,
+        detachedTimeoutMs: 15 * 60 * 1000,
+        maxReplayBufferLines: 2000,
     };
 }
 
@@ -63,10 +66,7 @@ describe("createAcpWsBridge", () => {
         while (tempDirs.length > 0) {
             const dir = tempDirs.pop();
             if (dir) {
-                rmSync(dir, {
-                    recursive: true,
-                    force: true,
-                });
+                await removeDirWithRetry(dir);
             }
         }
     });
@@ -359,4 +359,502 @@ describe("createAcpWsBridge", () => {
             "SIGKILL",
         ]);
     });
+
+    test("keeps agent process alive during active prompt on disconnect and re-attaches new socket with replayed buffer", async () => {
+        const sandboxDir = createSandboxDir();
+        const childScript = `
+            let buf = "";
+            process.stdin.setEncoding("utf8");
+            process.stdin.on("data", (chunk) => {
+                buf += chunk;
+                while (true) {
+                    const idx = buf.indexOf("\\n");
+                    if (idx === -1) break;
+                    const line = buf.slice(0, idx);
+                    buf = buf.slice(idx + 1);
+                    if (!line.trim()) continue;
+                    const msg = JSON.parse(line);
+                    if (msg.method === "initialize") {
+                        process.stdout.write(JSON.stringify({
+                            jsonrpc: "2.0",
+                            id: msg.id,
+                            result: {
+                                protocolVersion: 1,
+                                agentCapabilities: {
+                                    loadSession: true,
+                                },
+                            },
+                        }) + "\\n");
+                    } else if (msg.method === "session/prompt") {
+                        process.stdout.write(JSON.stringify({
+                            jsonrpc: "2.0",
+                            method: "pid_notice",
+                            params: {
+                                pid: process.pid,
+                            },
+                        }) + "\\n");
+                        setTimeout(() => {
+                            process.stdout.write(JSON.stringify({
+                                jsonrpc: "2.0",
+                                method: "session/update",
+                                params: {
+                                    chunk: "background-step-1",
+                                },
+                            }) + "\\n");
+                        }, 50);
+                        setTimeout(() => {
+                            process.stdout.write(JSON.stringify({
+                                jsonrpc: "2.0",
+                                id: msg.id,
+                                result: {
+                                    stopReason: "end_turn",
+                                },
+                            }) + "\\n");
+                        }, 120);
+                    }
+                }
+            });
+        `;
+
+        const bridge = await createAcpWsBridge(
+            createBaseConfig(sandboxDir, [
+                "-e",
+                childScript,
+            ]),
+        );
+        cleanups.push(() => bridge.close());
+
+        const ws1 = new WebSocket(`ws://127.0.0.1:${bridge.port}/ws`, [
+            "acp.v1",
+        ]);
+        await new Promise<void>((resolve, reject) => {
+            ws1.once("open", () => resolve());
+            ws1.once("error", reject);
+        });
+
+        let pid = 0;
+        const ws1Promise = new Promise<void>((resolve) => {
+            ws1.on("message", (data) => {
+                const msg = JSON.parse(data.toString("utf8")) as {
+                    method?: string;
+                    params?: {
+                        pid: number;
+                    };
+                };
+                if (msg.method === "pid_notice" && msg.params) {
+                    pid = msg.params.pid;
+                    resolve();
+                }
+            });
+        });
+
+        ws1.send('{"jsonrpc":"2.0","id":10,"method":"initialize","params":{}}\n');
+        ws1.send('{"jsonrpc":"2.0","id":11,"method":"session/prompt","params":{"prompt":"test"}}\n');
+
+        await ws1Promise;
+        expect(isProcessAlive(pid)).toBe(true);
+
+        await new Promise<void>((resolve) => {
+            ws1.once("close", () => resolve());
+            ws1.close();
+        });
+
+        await delay(150);
+        expect(isProcessAlive(pid)).toBe(true);
+
+        const ws2 = new WebSocket(`ws://127.0.0.1:${bridge.port}/ws`, [
+            "acp.v1",
+        ]);
+        await new Promise<void>((resolve, reject) => {
+            ws2.once("open", () => resolve());
+            ws2.once("error", reject);
+        });
+
+        const receivedWs2: Array<Record<string, unknown>> = [];
+        ws2.on("message", (data) => {
+            receivedWs2.push(JSON.parse(data.toString("utf8")));
+        });
+
+        ws2.send('{"jsonrpc":"2.0","id":99,"method":"initialize","params":{}}\n');
+
+        await new Promise<void>((resolve, reject) => {
+            const deadline = setTimeout(() => reject(new Error("Timed out waiting for re-attached responses")), 3000);
+            const timer = setInterval(() => {
+                if (receivedWs2.some((m) => m.id === 11)) {
+                    clearInterval(timer);
+                    clearTimeout(deadline);
+                    resolve();
+                }
+            }, 20);
+        });
+
+        expect(receivedWs2[0]).toEqual({
+            jsonrpc: "2.0",
+            id: 99,
+            result: {
+                protocolVersion: 1,
+                agentCapabilities: {
+                    loadSession: true,
+                },
+            },
+        });
+
+        const hasChunk = receivedWs2.some((m) => (m.params as { chunk?: string } | undefined)?.chunk === "background-step-1");
+        const hasPromptResult = receivedWs2.some(
+            (m) => m.id === 11 && (m.result as { stopReason?: string } | undefined)?.stopReason === "end_turn",
+        );
+        expect(hasChunk).toBe(true);
+        expect(hasPromptResult).toBe(true);
+
+        await new Promise<void>((resolve) => {
+            ws2.once("close", () => resolve());
+            ws2.close();
+        });
+
+        const exited = await waitForProcessExit(pid, 2000);
+        expect(exited).toBe(true);
+    });
+
+    test("retains pending permission request across client disconnect and forwards decision on re-attach", async () => {
+        const sandboxDir = createSandboxDir();
+        const childScript = `
+            let buf = "";
+            process.stdin.setEncoding("utf8");
+            process.stdin.on("data", (chunk) => {
+                buf += chunk;
+                while (true) {
+                    const idx = buf.indexOf("\\n");
+                    if (idx === -1) break;
+                    const line = buf.slice(0, idx);
+                    buf = buf.slice(idx + 1);
+                    if (!line.trim()) continue;
+                    const msg = JSON.parse(line);
+                    if (msg.method === "initialize") {
+                        process.stdout.write(JSON.stringify({
+                            jsonrpc: "2.0",
+                            id: msg.id,
+                            result: { ok: true },
+                        }) + "\\n");
+                    } else if (msg.method === "session/prompt") {
+                        process.stdout.write(JSON.stringify({
+                            jsonrpc: "2.0",
+                            id: "perm-42",
+                            method: "session/request_permission",
+                            params: {
+                                toolName: "shell",
+                                pid: process.pid,
+                            },
+                        }) + "\\n");
+                    } else if (msg.id === "perm-42") {
+                        process.stdout.write(JSON.stringify({
+                            jsonrpc: "2.0",
+                            id: 1,
+                            result: { finishedWith: msg.result?.decision },
+                        }) + "\\n");
+                    }
+                }
+            });
+        `;
+
+        const bridge = await createAcpWsBridge(
+            createBaseConfig(sandboxDir, [
+                "-e",
+                childScript,
+            ]),
+        );
+        cleanups.push(() => bridge.close());
+
+        const ws1 = new WebSocket(`ws://127.0.0.1:${bridge.port}/ws`, [
+            "acp.v1",
+        ]);
+        await new Promise<void>((resolve, reject) => {
+            ws1.once("open", () => resolve());
+            ws1.once("error", reject);
+        });
+
+        let pid = 0;
+        const receivedWs1: Array<Record<string, unknown>> = [];
+        const permReceived = new Promise<void>((resolve) => {
+            ws1.on("message", (data) => {
+                const msg = JSON.parse(data.toString("utf8")) as {
+                    id?: string | number;
+                    params?: {
+                        pid?: number;
+                    };
+                };
+                receivedWs1.push(msg as Record<string, unknown>);
+                if (msg.id === "perm-42") {
+                    pid = msg.params?.pid ?? 0;
+                    resolve();
+                }
+            });
+        });
+
+        ws1.send('{"jsonrpc":"2.0","id":0,"method":"initialize","params":{}}\n');
+        ws1.send('{"jsonrpc":"2.0","id":1,"method":"session/prompt","params":{}}\n');
+        await permReceived;
+
+        await new Promise<void>((resolve) => {
+            ws1.once("close", () => resolve());
+            ws1.close();
+        });
+
+        const ws2 = new WebSocket(`ws://127.0.0.1:${bridge.port}/ws`, [
+            "acp.v1",
+        ]);
+        await new Promise<void>((resolve, reject) => {
+            ws2.once("open", () => resolve());
+            ws2.once("error", reject);
+        });
+
+        const receivedWs2: Array<Record<string, unknown>> = [];
+        const ws2PermPromise = new Promise<void>((resolve) => {
+            ws2.on("message", (data) => {
+                const msg = JSON.parse(data.toString("utf8")) as Record<string, unknown>;
+                receivedWs2.push(msg);
+                if (msg.id === "perm-42") {
+                    resolve();
+                }
+            });
+        });
+
+        ws2.send('{"jsonrpc":"2.0","id":100,"method":"initialize","params":{}}\n');
+        await ws2PermPromise;
+
+        expect(receivedWs2.some((m) => m.id === "perm-42" && m.method === "session/request_permission")).toBe(true);
+
+        const promptFinished = new Promise<void>((resolve) => {
+            ws2.on("message", (data) => {
+                const msg = JSON.parse(data.toString("utf8")) as Record<string, unknown>;
+                if (msg.id === 1) {
+                    resolve();
+                }
+            });
+        });
+
+        ws2.send('{"jsonrpc":"2.0","id":"perm-42","result":{"decision":"allow"}}\n');
+        await promptFinished;
+
+        const finishMsg = receivedWs2.find((m) => m.id === 1);
+        expect(finishMsg).toEqual({
+            jsonrpc: "2.0",
+            id: 1,
+            result: {
+                finishedWith: "allow",
+            },
+        });
+
+        await new Promise<void>((resolve) => {
+            ws2.once("close", () => resolve());
+            ws2.close();
+        });
+
+        const exited = await waitForProcessExit(pid, 2000);
+        expect(exited).toBe(true);
+    });
+
+    test("terminates detached session after detachedTimeoutMs expires", async () => {
+        const sandboxDir = createSandboxDir();
+        const childScript = `
+            process.stdin.setEncoding("utf8");
+            process.stdin.on("data", (chunk) => {
+                const msg = JSON.parse(chunk.toString().trim());
+                if (msg.method === "session/prompt") {
+                    process.stdout.write(JSON.stringify({
+                        jsonrpc: "2.0",
+                        method: "pid_notice",
+                        params: { pid: process.pid },
+                    }) + "\\n");
+                    setInterval(() => {}, 1000);
+                }
+            });
+        `;
+
+        const config = createBaseConfig(sandboxDir, [
+            "-e",
+            childScript,
+        ]);
+        config.detachedTimeoutMs = 120;
+
+        const bridge = await createAcpWsBridge(config);
+        cleanups.push(() => bridge.close());
+
+        const ws = new WebSocket(`ws://127.0.0.1:${bridge.port}/ws`, [
+            "acp.v1",
+        ]);
+        await new Promise<void>((resolve, reject) => {
+            ws.once("open", () => resolve());
+            ws.once("error", reject);
+        });
+
+        let pid = 0;
+        const pidPromise = new Promise<void>((resolve) => {
+            ws.on("message", (data) => {
+                const msg = JSON.parse(data.toString("utf8")) as {
+                    method?: string;
+                    params?: {
+                        pid: number;
+                    };
+                };
+                if (msg.method === "pid_notice" && msg.params) {
+                    pid = msg.params.pid;
+                    resolve();
+                }
+            });
+        });
+
+        ws.send('{"jsonrpc":"2.0","id":1,"method":"session/prompt","params":{}}\n');
+        await pidPromise;
+        expect(isProcessAlive(pid)).toBe(true);
+
+        await new Promise<void>((resolve) => {
+            ws.once("close", () => resolve());
+            ws.close();
+        });
+
+        expect(isProcessAlive(pid)).toBe(true);
+
+        const exited = await waitForProcessExit(pid, 2000);
+        expect(exited).toBe(true);
+    });
+
+    test("serves concurrent session/load on active session via reader process without cancelling prompt", async () => {
+        const sandboxDir = createSandboxDir();
+        const childScript = `
+            let buf = "";
+            let promptActive = false;
+            process.stdin.setEncoding("utf8");
+            process.stdin.on("data", (chunk) => {
+                buf += chunk;
+                while (true) {
+                    const idx = buf.indexOf("\\n");
+                    if (idx === -1) break;
+                    const line = buf.slice(0, idx);
+                    buf = buf.slice(idx + 1);
+                    if (!line.trim()) continue;
+                    const msg = JSON.parse(line);
+                    if (msg.method === "initialize") {
+                        process.stdout.write(JSON.stringify({
+                            jsonrpc: "2.0",
+                            id: msg.id,
+                            result: { ok: true },
+                        }) + "\\n");
+                    } else if (msg.method === "session/prompt") {
+                        promptActive = true;
+                        process.stdout.write(JSON.stringify({
+                            jsonrpc: "2.0",
+                            method: "session/update",
+                            params: { chunk: "step-1" },
+                        }) + "\\n");
+                        setTimeout(() => {
+                            promptActive = false;
+                            process.stdout.write(JSON.stringify({
+                                jsonrpc: "2.0",
+                                id: msg.id,
+                                result: { stopReason: "end_turn" },
+                            }) + "\\n");
+                        }, 150);
+                    } else if (msg.method === "session/load") {
+                        if (promptActive) {
+                            process.stdout.write(JSON.stringify({
+                                jsonrpc: "2.0",
+                                id: msg.id,
+                                error: { message: "Cancelled due to concurrent session/load" },
+                            }) + "\\n");
+                        } else {
+                            process.stdout.write(JSON.stringify({
+                                jsonrpc: "2.0",
+                                method: "session/update",
+                                params: { history: "turn-1" },
+                            }) + "\\n");
+                            process.stdout.write(JSON.stringify({
+                                jsonrpc: "2.0",
+                                id: msg.id,
+                                result: { loadedSuccessfully: true },
+                            }) + "\\n");
+                        }
+                    }
+                }
+            });
+        `;
+
+        const bridge = await createAcpWsBridge(
+            createBaseConfig(sandboxDir, [
+                "-e",
+                childScript,
+            ]),
+        );
+        cleanups.push(() => bridge.close());
+
+        const ws = new WebSocket(`ws://127.0.0.1:${bridge.port}/ws`, [
+            "acp.v1",
+        ]);
+        await new Promise<void>((resolve, reject) => {
+            ws.once("open", () => resolve());
+            ws.once("error", reject);
+        });
+
+        const received: Array<Record<string, unknown>> = [];
+        ws.on("message", (data) => {
+            received.push(JSON.parse(data.toString("utf8")));
+        });
+
+        ws.send('{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n');
+        ws.send('{"jsonrpc":"2.0","id":2,"method":"session/prompt","params":{"sessionId":"test-session-1","prompt":"hello"}}\n');
+        ws.send('{"jsonrpc":"2.0","id":3,"method":"session/load","params":{"sessionId":"test-session-1"}}\n');
+
+        await new Promise<void>((resolve, reject) => {
+            const deadline = setTimeout(() => reject(new Error("Timed out waiting for prompt and load reply")), 4000);
+            const timer = setInterval(() => {
+                if (received.some((m) => m.id === 3) && received.some((m) => m.id === 2)) {
+                    clearInterval(timer);
+                    clearTimeout(deadline);
+                    resolve();
+                }
+            }, 20);
+        });
+
+        const promptIndex = received.findIndex((m) => m.id === 2);
+        const loadIndex = received.findIndex((m) => m.id === 3);
+        const historyIndex = received.findIndex((m) => (m.params as { history?: string } | undefined)?.history === "turn-1");
+        const stepIndex = received.findIndex((m) => (m.params as { chunk?: string } | undefined)?.chunk === "step-1");
+
+        expect(promptIndex).toBeGreaterThan(-1);
+        expect(loadIndex).toBeGreaterThan(-1);
+        expect(historyIndex).toBeGreaterThan(-1);
+        expect(stepIndex).toBeGreaterThan(-1);
+
+        // Historical updates and load reply must arrive before active prompt completes
+        expect(historyIndex).toBeLessThan(loadIndex);
+        expect(loadIndex).toBeLessThan(promptIndex);
+
+        const promptReply = received[promptIndex];
+        const loadReply = received[loadIndex];
+        expect((promptReply?.result as { stopReason?: string } | undefined)?.stopReason).toBe("end_turn");
+        expect((loadReply?.result as { loadedSuccessfully?: boolean } | undefined)?.loadedSuccessfully).toBe(true);
+        expect(loadReply?.error).toBeUndefined();
+
+        await new Promise<void>((resolve) => {
+            ws.once("close", () => resolve());
+            ws.close();
+        });
+    });
 });
+
+async function removeDirWithRetry(dirPath: string): Promise<void> {
+    const maxAttempts = 20;
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        try {
+            await rm(dirPath, {
+                recursive: true,
+                force: true,
+            });
+            return;
+        } catch (error) {
+            if (attempt === maxAttempts) {
+                throw error;
+            }
+            await delay(50);
+        }
+    }
+}

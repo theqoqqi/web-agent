@@ -25,6 +25,7 @@ export interface RpcTransport {
 export interface AcpRpcClientOptions {
     onNotification?: (method: string, params: unknown) => void;
     onRequest?: (method: string, params: unknown) => Promise<unknown>;
+    onUnsolicitedResponse?: (message: JsonRpcResponseMessage) => void;
 }
 
 export interface RpcRequestOptions {
@@ -146,6 +147,7 @@ export class AcpRpcClient {
         const pendingEntry = this.pending.get(message.id);
 
         if (!pendingEntry) {
+            this.options.onUnsolicitedResponse?.(message);
             return;
         }
 

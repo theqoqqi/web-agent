@@ -48,6 +48,8 @@ describe("resolveBridgeConfig", () => {
             heartbeatPingIntervalMs: 30000,
             maxFileBytes: 1024 * 1024,
             viewerSnippetBytes: 100 * 1024,
+            detachedTimeoutMs: 15 * 60 * 1000,
+            maxReplayBufferLines: 2000,
         });
     });
 
@@ -68,6 +70,8 @@ describe("resolveBridgeConfig", () => {
                 ACP_HEARTBEAT_MS: "0",
                 ACP_VIEWER_MAX_BYTES: "2048",
                 ACP_VIEWER_SNIPPET_BYTES: "512",
+                ACP_DETACHED_TIMEOUT_MS: "60000",
+                ACP_MAX_REPLAY_BUFFER_LINES: "500",
             },
             overrides: {
                 port: 4020,
@@ -90,6 +94,8 @@ describe("resolveBridgeConfig", () => {
             heartbeatPingIntervalMs: 0,
             maxFileBytes: 2048,
             viewerSnippetBytes: 512,
+            detachedTimeoutMs: 60000,
+            maxReplayBufferLines: 500,
         });
     });
 

@@ -190,8 +190,6 @@ export function sessionReducer(
             return {
                 ...state,
                 connectionStatus: action.status,
-                isGenerating:
-                    action.status === "disconnected" ? false : state.isGenerating,
             };
 
         case "SET_CWD":
@@ -233,6 +231,7 @@ export function sessionReducer(
                 sessionId: action.sessionId,
                 cwd: action.cwd,
                 isLoadingSession: false,
+                isGenerating: false,
                 visibleCount: DEFAULT_VISIBLE_MESSAGES,
                 modes: action.modes?.availableModes ?? state.modes,
                 currentModeId: action.modes?.currentModeId ?? state.currentModeId,
@@ -361,6 +360,8 @@ function applySessionUpdate(
         return state;
     }
 
+    const isLiveChunk = !state.isLoadingSession;
+
     switch (update.sessionUpdate) {
         case "user_message_chunk": {
             const text = extractChunkText(update.content);
@@ -384,6 +385,7 @@ function applySessionUpdate(
 
             return {
                 ...state,
+                isGenerating: isLiveChunk ? true : state.isGenerating,
                 messages: updateLastAssistant(state.messages, (assistant) => ({
                     ...assistant,
                     blocks: appendTextBlock(assistant.blocks, text),
@@ -400,6 +402,7 @@ function applySessionUpdate(
 
             return {
                 ...state,
+                isGenerating: isLiveChunk ? true : state.isGenerating,
                 messages: updateLastAssistant(state.messages, (assistant) => ({
                     ...assistant,
                     blocks: appendThoughtStep(assistant.blocks, text),
@@ -415,6 +418,7 @@ function applySessionUpdate(
 
             return {
                 ...state,
+                isGenerating: isLiveChunk ? true : state.isGenerating,
                 messages: updateLastAssistant(state.messages, (assistant) => ({
                     ...assistant,
                     blocks: upsertToolCallStep(assistant.blocks, update),

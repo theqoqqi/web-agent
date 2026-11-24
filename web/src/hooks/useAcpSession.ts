@@ -46,6 +46,7 @@ export function useAcpSession() {
     const activeSessionIdRef = useRef<string | null>(null);
     const activeCwdRef = useRef<string>(state.cwd);
     const canLoadSessionRef = useRef(false);
+    const hasMessagesRef = useRef(false);
     const permissionResolversRef = useRef(
         new Map<string, (res: AcpPermissionResponse) => void>(),
     );
@@ -53,6 +54,7 @@ export function useAcpSession() {
     activeSessionIdRef.current = state.sessionId;
     activeCwdRef.current = state.cwd;
     canLoadSessionRef.current = canLoadSession;
+    hasMessagesRef.current = state.messages.length > 0;
 
     const clearPendingPermissions = useCallback(() => {
         for (const [id, resolve] of permissionResolversRef.current.entries()) {
@@ -126,11 +128,17 @@ export function useAcpSession() {
                 cwd: normalizedCwd,
             });
 
-            const result = await client.request<AcpLoadSessionResult>("session/load", {
-                sessionId,
-                cwd: normalizedCwd,
-                mcpServers: [],
-            });
+            const result = await client.request<AcpLoadSessionResult>(
+                "session/load",
+                {
+                    sessionId,
+                    cwd: normalizedCwd,
+                    mcpServers: [],
+                },
+                {
+                    timeoutMs: null,
+                },
+            );
 
             dispatch({
                 type: "SESSION_READY",
@@ -207,6 +215,14 @@ export function useAcpSession() {
                         });
                     });
                 },
+                onUnsolicitedResponse: (message) => {
+                    const result = message.result as Record<string, unknown> | undefined;
+                    if (result && typeof result.stopReason === "string") {
+                        dispatch({ type: "PROMPT_FINISHED" });
+                    } else if (message.error) {
+                        dispatch({ type: "PROMPT_FINISHED" });
+                    }
+                },
             });
             clientRef.current = client;
 
@@ -240,6 +256,11 @@ export function useAcpSession() {
             const targetSessionId = activeSessionIdRef.current || getInitialTargetSessionId();
 
             if (targetSessionId && loadSupported) {
+                if (activeSessionIdRef.current === targetSessionId && hasMessagesRef.current) {
+                    dispatch({ type: "SET_CONNECTION_STATUS", status: "connected" });
+                    return;
+                }
+
                 const matched = getStoredSessions().find((s) => s.sessionId === targetSessionId);
                 const targetCwd = matched?.cwd || activeCwdRef.current;
 
@@ -414,6 +435,8 @@ export function useAcpSession() {
                 if (!targetSessionId) {
                     targetSessionId = await createNewSessionOnClient(client, normalizedCwd);
                 }
+
+                setLastActiveSessionId(targetSessionId);
 
                 const existingTitle = getStoredSessions().find(
                     (item) => item.sessionId === targetSessionId,
