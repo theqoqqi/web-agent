@@ -135,4 +135,58 @@ describe("storage", () => {
         setLastActiveSessionId(null);
         expect(getLastActiveSessionId()).toBeNull();
     });
+
+    test("автоматически подтягивает и мигрирует сессии из acp-ui:sessions.json", () => {
+        window.localStorage.setItem(
+            "acp-ui:sessions.json",
+            JSON.stringify({
+                sessions: [
+                    {
+                        sessionId: "legacy-1",
+                        title: "Сессия из старого UI",
+                        cwd: "/srv/legacy",
+                        lastUpdated: 1700000000000,
+                    },
+                    {
+                        sessionId: "legacy-2",
+                        title: "Вторая старая",
+                        lastUpdated: 1700000010000,
+                    },
+                ],
+            }),
+        );
+
+        const loaded = getStoredSessions();
+        expect(loaded).toEqual([
+            {
+                sessionId: "legacy-2",
+                title: "Вторая старая",
+                cwd: "/srv",
+                updatedAt: 1700000010000,
+            },
+            {
+                sessionId: "legacy-1",
+                title: "Сессия из старого UI",
+                cwd: "/srv/legacy",
+                updatedAt: 1700000000000,
+            },
+        ]);
+
+        const persistedInNewKey = JSON.parse(
+            window.localStorage.getItem("web-agent:sessions") ?? "[]",
+        );
+        expect(persistedInNewKey).toEqual(loaded);
+    });
+
+    test("подтягивает lastCwd из acp-ui:preferences.json если свой ключ пуст", () => {
+        window.localStorage.setItem(
+            "acp-ui:preferences.json",
+            JSON.stringify({ lastCwd: "/srv/from-acp-ui" }),
+        );
+
+        expect(getStoredCwd()).toBe("/srv/from-acp-ui");
+
+        setStoredCwd("/srv/new-cwd");
+        expect(getStoredCwd()).toBe("/srv/new-cwd");
+    });
 });
