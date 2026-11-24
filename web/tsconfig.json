@@ -1,0 +1,36 @@
+{
+    "compilerOptions": {
+        "target": "ES2023",
+        "lib": [
+            "ES2023",
+            "DOM",
+            "DOM.Iterable"
+        ],
+        "module": "ESNext",
+        "moduleResolution": "Bundler",
+        "jsx": "react-jsx",
+        "strict": true,
+        "noEmit": true,
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "forceConsistentCasingInFileNames": true,
+        "resolveJsonModule": true,
+        "noUncheckedIndexedAccess": true,
+        "types": [
+            "vite/client",
+            "@testing-library/jest-dom/vitest"
+        ]
+    },
+    "include": [
+        "src/**/*.ts",
+        "src/**/*.tsx",
+        "tests/**/*.ts",
+        "tests/**/*.tsx",
+        "vite.config.ts",
+        "vitest.config.ts"
+    ],
+    "exclude": [
+        "node_modules",
+        "dist"
+    ]
+}
