@@ -1,7 +1,7 @@
 .footer {
     border-top: 1px solid var(--border-default);
     background: var(--bg-surface);
-    padding: 10px 16px 12px;
+    padding: 8px 12px 10px;
 }
 
 .inner {
@@ -64,7 +64,7 @@
 
 .inputRow {
     display: flex;
-    align-items: flex-end;
+    align-items: flex-start;
     gap: 8px;
 }
 
