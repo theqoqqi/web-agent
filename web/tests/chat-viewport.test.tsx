@@ -196,8 +196,12 @@ describe("ChatViewport and MessageItem", () => {
             />,
         );
 
-        const toggleRunning = screen.getByRole("button");
+        const toggleRunning = screen.getByRole("button", { name: /Чтение файла/i });
         expect(toggleRunning).toHaveAttribute("aria-expanded", "true");
+
+        const thoughtToggle = screen.getByRole("button", { name: /Размышления/i });
+        expect(thoughtToggle).toHaveAttribute("aria-expanded", "false");
+        fireEvent.click(thoughtToggle);
         expect(screen.getByText("Анализирую файл")).toBeInTheDocument();
 
         const completedItems: AgentStepItem[] = [

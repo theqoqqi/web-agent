@@ -67,9 +67,7 @@ export function AgentSteps({
             <div className={styles.toolList}>
                 {items.map((item) =>
                     item.kind === "thought" ? (
-                        <p key={item.id} className={styles.thoughtItem}>
-                            {item.text}
-                        </p>
+                        <ThoughtStepItem key={item.id} text={item.text} />
                     ) : (
                         <ToolCallItem
                             key={item.toolCall.toolCallId}
@@ -79,6 +77,21 @@ export function AgentSteps({
                     ),
                 )}
             </div>
+        </Collapsible>
+    );
+}
+
+function ThoughtStepItem({ text }: { text: string }) {
+    const [isOpen, setIsOpen] = useState(false);
+
+    return (
+        <Collapsible
+            isOpen={isOpen}
+            onToggle={() => setIsOpen((prev) => !prev)}
+            variant="flat"
+            header={<span className={styles.thoughtTitle}>Размышления</span>}
+        >
+            <p className={styles.thoughtItem}>{text}</p>
         </Collapsible>
     );
 }

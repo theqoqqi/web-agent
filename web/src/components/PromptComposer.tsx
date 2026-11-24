@@ -6,39 +6,23 @@ import {
     type KeyboardEvent,
     type MouseEvent,
 } from "react";
-import type {
-    AcpAvailableCommand,
-    AcpModeOption,
-    AcpModelOption,
-} from "../acp/types";
+import type { AcpAvailableCommand } from "../acp/types";
 import styles from "./PromptComposer.module.css";
 
 export interface PromptComposerProps {
     isGenerating: boolean;
     canSend: boolean;
     availableCommands: AcpAvailableCommand[];
-    modes: AcpModeOption[];
-    currentModeId: string | null;
-    models: AcpModelOption[];
-    currentModelId: string | null;
     onSend: (text: string) => void;
     onCancel: () => void;
-    onSelectMode: (modeId: string) => void;
-    onSelectModel: (modelId: string) => void;
 }
 
 export function PromptComposer({
     isGenerating,
     canSend,
     availableCommands,
-    modes,
-    currentModeId,
-    models,
-    currentModelId,
     onSend,
     onCancel,
-    onSelectMode,
-    onSelectModel,
 }: PromptComposerProps) {
     const [inputValue, setInputValue] = useState("");
     const [activeCommandIndex, setActiveCommandIndex] = useState(0);
@@ -188,46 +172,6 @@ export function PromptComposer({
                         </button>
                     )}
                 </div>
-
-                {(modes.length > 0 || models.length > 0) && (
-                    <div className={styles.pickersRow}>
-                        {modes.length > 0 && (
-                            <label className={styles.pickerLabel}>
-                                <span>Режим:</span>
-                                <select
-                                    className={styles.pickerSelect}
-                                    value={currentModeId ?? ""}
-                                    disabled={isGenerating}
-                                    onChange={(event) => onSelectMode(event.currentTarget.value)}
-                                >
-                                    {modes.map((mode) => (
-                                        <option key={mode.id} value={mode.id}>
-                                            {mode.name}
-                                        </option>
-                                    ))}
-                                </select>
-                            </label>
-                        )}
-
-                        {models.length > 0 && (
-                            <label className={styles.pickerLabel}>
-                                <span>Модель:</span>
-                                <select
-                                    className={styles.pickerSelect}
-                                    value={currentModelId ?? ""}
-                                    disabled={isGenerating}
-                                    onChange={(event) => onSelectModel(event.currentTarget.value)}
-                                >
-                                    {models.map((model) => (
-                                        <option key={model.modelId} value={model.modelId}>
-                                            {model.name}
-                                        </option>
-                                    ))}
-                                </select>
-                            </label>
-                        )}
-                    </div>
-                )}
             </form>
         </footer>
     );
