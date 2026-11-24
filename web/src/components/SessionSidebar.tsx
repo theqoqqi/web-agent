@@ -1,4 +1,5 @@
-import { Plus, Trash2 } from "lucide-react";
+import { FolderInput, Plus, Trash2 } from "lucide-react";
+import { useState, type FormEvent } from "react";
 import type { StoredSession } from "../lib/storage";
 import styles from "./SessionSidebar.module.css";
 
@@ -12,6 +13,7 @@ export interface SessionSidebarProps {
     onNewSession: () => void;
     onSelectSession: (session: StoredSession) => void;
     onDeleteSession: (sessionId: string) => void;
+    onOpenSessionById: (sessionId: string) => Promise<boolean>;
 }
 
 export function SessionSidebar({
@@ -24,19 +26,90 @@ export function SessionSidebar({
     onNewSession,
     onSelectSession,
     onDeleteSession,
+    onOpenSessionById,
 }: SessionSidebarProps) {
+    const [isImportOpen, setIsImportOpen] = useState(false);
+    const [importId, setImportId] = useState("");
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    async function handleImportSubmit(event: FormEvent) {
+        event.preventDefault();
+        const trimmed = importId.trim();
+
+        if (!trimmed) {
+            return;
+        }
+
+        setIsSubmitting(true);
+        const ok = await onOpenSessionById(trimmed);
+        setIsSubmitting(false);
+
+        if (ok) {
+            setIsImportOpen(false);
+            setImportId("");
+        }
+    }
+
     return (
         <aside className={styles.sidebar} aria-label="Список сессий">
             <div className={styles.top}>
-                <button
-                    type="button"
-                    className={styles.newChatBtn}
-                    disabled={!isConnected}
-                    onClick={onNewSession}
-                >
-                    <Plus size={16} />
-                    <span>Новый чат</span>
-                </button>
+                <div className={styles.actionRow}>
+                    <button
+                        type="button"
+                        className={styles.newChatBtn}
+                        disabled={!isConnected}
+                        onClick={onNewSession}
+                    >
+                        <Plus size={16} />
+                        <span>Новый чат</span>
+                    </button>
+
+                    <button
+                        type="button"
+                        className={styles.openByIdToggleBtn}
+                        disabled={!isConnected || !canLoadSession}
+                        title="Открыть существующую сессию по ID"
+                        aria-label="Открыть существующую сессию по ID"
+                        aria-expanded={isImportOpen}
+                        onClick={() => setIsImportOpen((prev) => !prev)}
+                    >
+                        <FolderInput size={16} />
+                    </button>
+                </div>
+
+                {isImportOpen && (
+                    <form className={styles.importForm} onSubmit={handleImportSubmit}>
+                        <input
+                            type="text"
+                            className={styles.importInput}
+                            placeholder="UUID сессии..."
+                            value={importId}
+                            disabled={isSubmitting}
+                            autoFocus
+                            onChange={(event) => setImportId(event.currentTarget.value)}
+                        />
+                        <div className={styles.importActions}>
+                            <button
+                                type="submit"
+                                className={styles.importSubmitBtn}
+                                disabled={isSubmitting || importId.trim().length === 0}
+                            >
+                                {isSubmitting ? "Загрузка..." : "Открыть"}
+                            </button>
+                            <button
+                                type="button"
+                                className={styles.importCancelBtn}
+                                disabled={isSubmitting}
+                                onClick={() => {
+                                    setIsImportOpen(false);
+                                    setImportId("");
+                                }}
+                            >
+                                Отмена
+                            </button>
+                        </div>
+                    </form>
+                )}
 
                 <label className={styles.cwdGroup}>
                     <span className={styles.cwdLabel}>Рабочий каталог (cwd)</span>

@@ -17,12 +17,19 @@
     border-bottom: 1px solid var(--border-default);
 }
 
+.actionRow {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+}
+
 .newChatBtn {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 6px;
-    width: 100%;
+    flex: 1;
     padding: 8px 12px;
     border-radius: 8px;
     border: none;
@@ -41,6 +48,97 @@
 .newChatBtn:disabled {
     background: var(--color-disabled);
     cursor: default;
+}
+
+.openByIdToggleBtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    border: 1px solid var(--border-default);
+    background: var(--bg-surface);
+    color: var(--text-main);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.openByIdToggleBtn:hover:not(:disabled) {
+    background: var(--bg-surface-hover);
+}
+
+.openByIdToggleBtn:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.importForm {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px;
+    border-radius: 8px;
+    border: 1px solid var(--border-default);
+    background: var(--bg-surface);
+}
+
+.importInput {
+    width: 100%;
+    padding: 6px 8px;
+    font-size: 12px;
+    font-family: var(--font-mono);
+    border-radius: 6px;
+    border: 1px solid var(--border-default);
+    background: var(--bg-surface-muted);
+    color: var(--text-main);
+    outline: none;
+}
+
+.importInput:focus {
+    border-color: var(--color-primary);
+}
+
+.importActions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.importSubmitBtn {
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: none;
+    background: var(--color-primary);
+    color: #ffffff;
+    font-size: 11.5px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.importSubmitBtn:hover:not(:disabled) {
+    background: var(--color-primary-hover);
+}
+
+.importSubmitBtn:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.importCancelBtn {
+    padding: 4px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--border-default);
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 11.5px;
+    cursor: pointer;
+}
+
+.importCancelBtn:hover:not(:disabled) {
+    background: var(--bg-surface-hover);
+    color: var(--text-main);
 }
 
 .cwdGroup {

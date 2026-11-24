@@ -11,6 +11,7 @@ export const DEFAULT_CWD = "/srv";
 
 const THEME_STORAGE_KEY = "web-agent:theme";
 const LAST_CWD_STORAGE_KEY = "web-agent:last-cwd";
+const LAST_SESSION_ID_STORAGE_KEY = "web-agent:last-session-id";
 const SESSIONS_STORAGE_KEY = "web-agent:sessions";
 const MAX_STORED_SESSIONS = 50;
 
@@ -41,6 +42,36 @@ export function setStoredCwd(cwd: string): void {
         LAST_CWD_STORAGE_KEY,
         trimmed.length > 0 ? trimmed : DEFAULT_CWD,
     );
+}
+
+export function getLastActiveSessionId(): string | null {
+    const raw = readStorageItem(LAST_SESSION_ID_STORAGE_KEY);
+    const trimmed = raw?.trim();
+
+    return trimmed && trimmed.length > 0 ? trimmed : null;
+}
+
+export function setLastActiveSessionId(sessionId: string | null): void {
+    if (!sessionId) {
+        try {
+            window.localStorage.removeItem(LAST_SESSION_ID_STORAGE_KEY);
+        } catch {
+            return;
+        }
+        return;
+    }
+
+    const trimmed = sessionId.trim();
+    if (trimmed.length === 0) {
+        try {
+            window.localStorage.removeItem(LAST_SESSION_ID_STORAGE_KEY);
+        } catch {
+            return;
+        }
+        return;
+    }
+
+    writeStorageItem(LAST_SESSION_ID_STORAGE_KEY, trimmed);
 }
 
 export function getStoredSessions(): StoredSession[] {

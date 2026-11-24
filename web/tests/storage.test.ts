@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, test } from "vitest";
 import {
     DEFAULT_CWD,
+    getLastActiveSessionId,
     getStoredCwd,
     getStoredSessions,
     getStoredTheme,
     removeStoredSession,
+    setLastActiveSessionId,
     setStoredCwd,
     setStoredTheme,
     upsertStoredSession,
@@ -116,5 +118,21 @@ describe("storage", () => {
                 updatedAt: 200,
             },
         ]);
+    });
+
+    test("сохраняет, читает и сбрасывает идентификатор последней активной сессии", () => {
+        expect(getLastActiveSessionId()).toBeNull();
+
+        setLastActiveSessionId("  sess-123  ");
+        expect(getLastActiveSessionId()).toBe("sess-123");
+
+        setLastActiveSessionId("");
+        expect(getLastActiveSessionId()).toBeNull();
+
+        setLastActiveSessionId("sess-456");
+        expect(getLastActiveSessionId()).toBe("sess-456");
+
+        setLastActiveSessionId(null);
+        expect(getLastActiveSessionId()).toBeNull();
     });
 });

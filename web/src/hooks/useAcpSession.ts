@@ -16,9 +16,11 @@ import type {
 import { AcpWsTransport } from "../acp/ws-transport";
 import {
     DEFAULT_CWD,
+    getLastActiveSessionId,
     getStoredCwd,
     getStoredSessions,
     removeStoredSession,
+    setLastActiveSessionId,
     setStoredCwd,
     upsertStoredSession,
     type StoredSession,
@@ -92,6 +94,7 @@ export function useAcpSession() {
             });
 
             activeSessionIdRef.current = result.sessionId;
+            setLastActiveSessionId(result.sessionId);
             dispatch({
                 type: "SESSION_READY",
                 sessionId: result.sessionId,
@@ -113,6 +116,7 @@ export function useAcpSession() {
         ): Promise<void> => {
             const normalizedCwd = normalizeCwd(cwd);
             activeSessionIdRef.current = sessionId;
+            setLastActiveSessionId(sessionId);
             dispatch({
                 type: "START_SESSION_LOAD",
                 sessionId,
@@ -229,14 +233,24 @@ export function useAcpSession() {
             canLoadSessionRef.current = loadSupported;
             dispatch({ type: "SET_CONNECTION_STATUS", status: "connected" });
 
-            const existingSessionId = activeSessionIdRef.current;
+            const targetSessionId = activeSessionIdRef.current || getInitialTargetSessionId();
 
-            if (existingSessionId && loadSupported) {
-                await loadExistingSessionOnClient(
-                    client,
-                    existingSessionId,
-                    activeCwdRef.current,
-                );
+            if (targetSessionId && loadSupported) {
+                const matched = getStoredSessions().find((s) => s.sessionId === targetSessionId);
+                const targetCwd = matched?.cwd || activeCwdRef.current;
+
+                try {
+                    await loadExistingSessionOnClient(
+                        client,
+                        targetSessionId,
+                        targetCwd,
+                    );
+                    dispatch({ type: "SET_CWD", cwd: targetCwd });
+                    setStoredCwd(targetCwd);
+                } catch {
+                    setLastActiveSessionId(null);
+                    await createNewSessionOnClient(client, activeCwdRef.current);
+                }
             } else {
                 await createNewSessionOnClient(client, activeCwdRef.current);
             }
@@ -323,8 +337,58 @@ export function useAcpSession() {
     );
 
     const deleteStoredSession = useCallback((sessionId: string) => {
+        if (activeSessionIdRef.current === sessionId) {
+            setLastActiveSessionId(null);
+        }
         setSessions(removeStoredSession(sessionId));
     }, []);
+
+    const openSessionById = useCallback(
+        async (rawSessionId: string, customCwd?: string): Promise<boolean> => {
+            const client = clientRef.current;
+            const trimmedId = rawSessionId.trim();
+
+            if (!trimmedId) {
+                dispatch({
+                    type: "SET_ERROR",
+                    message: "Укажите ID сессии",
+                });
+                return false;
+            }
+
+            if (!client || !transportRef.current?.isOpen() || !canLoadSessionRef.current) {
+                dispatch({
+                    type: "SET_ERROR",
+                    message: "Сервер не поддерживает загрузку сессий или нет соединения",
+                });
+                return false;
+            }
+
+            const targetCwd = normalizeCwd(customCwd || activeCwdRef.current);
+
+            try {
+                await loadExistingSessionOnClient(client, trimmedId, targetCwd);
+                dispatch({ type: "SET_CWD", cwd: targetCwd });
+                setStoredCwd(targetCwd);
+                setLastActiveSessionId(trimmedId);
+
+                const existing = getStoredSessions().find((item) => item.sessionId === trimmedId);
+                setSessions(
+                    upsertStoredSession({
+                        sessionId: trimmedId,
+                        cwd: targetCwd,
+                        title: existing?.title || trimmedId,
+                        updatedAt: Date.now(),
+                    }),
+                );
+                return true;
+            } catch (err) {
+                handleSessionError(err, `Не удалось загрузить сессию ${trimmedId}`);
+                return false;
+            }
+        },
+        [handleSessionError, loadExistingSessionOnClient],
+    );
 
     const sendPrompt = useCallback(
         async (text: string) => {
@@ -471,6 +535,7 @@ export function useAcpSession() {
         startNewSession,
         selectStoredSession,
         deleteStoredSession,
+        openSessionById,
         sendPrompt,
         cancelPrompt,
         selectMode,
@@ -497,4 +562,22 @@ function buildSessionTitle(promptText: string): string {
     }
 
     return `${firstLine.slice(0, 45)}...`;
+}
+
+function getInitialTargetSessionId(): string | null {
+    if (typeof window === "undefined") {
+        return null;
+    }
+
+    try {
+        const fromUrl = new URLSearchParams(window.location.search).get("sessionId");
+        const trimmedUrl = fromUrl?.trim();
+        if (trimmedUrl && trimmedUrl.length > 0) {
+            return trimmedUrl;
+        }
+    } catch {
+        // ignore search params parsing error
+    }
+
+    return getLastActiveSessionId();
 }

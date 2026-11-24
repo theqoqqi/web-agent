@@ -27,6 +27,7 @@ export function AppShell() {
         startNewSession,
         selectStoredSession,
         deleteStoredSession,
+        openSessionById,
         sendPrompt,
         cancelPrompt,
         selectMode,
@@ -90,6 +91,13 @@ export function AppShell() {
                             }
                         }}
                         onDeleteSession={deleteStoredSession}
+                        onOpenSessionById={async (sessionId) => {
+                            const ok = await openSessionById(sessionId);
+                            if (ok && isNarrowViewport()) {
+                                setSidebarOpen(false);
+                            }
+                            return ok;
+                        }}
                     />
                 </>
             )}
