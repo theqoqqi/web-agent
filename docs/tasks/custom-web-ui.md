@@ -272,7 +272,7 @@ export type AcpSessionUpdatePayload =
     * **RED:** падающие тесты в `web/tests/ws-transport.test.ts` (подключение с subprotocol `"acp.v1"`, склейка/сплит `\n`-фреймов, heartbeat `$/ping` каждые 25s, коннект-таймаут) и `web/tests/rpc-client.test.ts` (корреляция id, отсутствие 60s таймаута для `session/prompt` при 60s таймауте/отсечке обычных запросов, ответ `-32601` на `fs/read_text_file`, обработка `-32000`, передача входящих `session/request_permission` и `session/update`). Запуск: `npm --prefix web test` (ожидается FAIL).
     * **GREEN:** минимальная реализация `web/src/acp/types.ts`, `web/src/acp/ws-transport.ts`, `web/src/acp/rpc-client.ts`. Запуск: `npm --prefix web test` (ожидается PASS).
     * **REFACTOR:** унификация обработки таймаутов и reject при закрытии сокета.
-4. [ ] **Шаг 4: Чистый редьюсер состояния чата и сессий (`session-reducer.ts`)**
+4. [x] **Шаг 4: Чистый редьюсер состояния чата и сессий (`session-reducer.ts`)**
     * **RED:** падающие тесты в `web/tests/session-reducer.test.ts`: склейка стриминговых чанков (`agent_message_chunk`, `agent_thought_chunk`), обновление `tool_call` -> `tool_call_update` по `toolCallId`, извлечение `modes`/`models` как из `session/new`, так и из `session/load`, обновление `availableCommands`, очередь `pendingPermissions`, расчёт окна `visibleMessages` / `hiddenCount` и инкремент подгрузки `LOAD_MORE_HISTORY`. Запуск: `npm --prefix web test` (ожидается FAIL).
     * **GREEN:** минимальная реализация `web/src/acp/session-reducer.ts`. Запуск: `npm --prefix web test` (ожидается PASS).
     * **REFACTOR:** выделение чистых селекторов и обработчиков `session/update` по вариантам.
