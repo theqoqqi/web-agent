@@ -1,0 +1,56 @@
+.container {
+    margin-bottom: 8px;
+}
+
+.headerLeft {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.headerTitle {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text-main);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.liveBadge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 1px 7px;
+    background: var(--bg-live-badge);
+    border: 1px solid var(--border-live-badge);
+    border-radius: 999px;
+    font-size: 11px;
+    color: var(--color-primary);
+    font-weight: 500;
+    flex-shrink: 0;
+}
+
+.liveSpinner {
+    display: inline-block;
+    flex-shrink: 0;
+    color: var(--color-primary);
+    animation: stepSpin 0.8s linear infinite;
+}
+
+.body {
+    padding: 8px 10px;
+}
+
+.toolList {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+@keyframes stepSpin {
+    to {
+        transform: rotate(360deg);
+    }
+}

@@ -1,0 +1,129 @@
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: var(--font-sans);
+    background: var(--bg-app);
+    color: var(--text-main);
+    -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+textarea,
+select {
+    font-family: inherit;
+}
+
+.md-code-block {
+    margin: 8px 0;
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--bg-code-block);
+}
+
+.md-code-block:first-child {
+    margin-top: 0;
+}
+
+.md-code-block:last-child {
+    margin-bottom: 0;
+}
+
+.md-code-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 5px 10px;
+    background: var(--bg-code-header);
+    border-bottom: 1px solid var(--border-default);
+}
+
+.md-code-lang {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-muted);
+    text-transform: lowercase;
+}
+
+.md-copy-code-btn {
+    padding: 2px 8px;
+    font-size: 11px;
+    color: var(--text-muted);
+    background: transparent;
+    border: 1px solid var(--border-default);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.md-copy-code-btn:hover {
+    background: var(--bg-surface-hover);
+    color: var(--text-main);
+}
+
+.md-code-block pre {
+    margin: 0;
+    padding: 10px 12px;
+    overflow-x: auto;
+    line-height: 1.45;
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+.md-code-block pre code {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    white-space: pre;
+    color: var(--text-main);
+    background: transparent;
+    border: none;
+    padding: 0;
+}
+
+.hljs-comment,
+.hljs-quote {
+    color: var(--hljs-comment);
+    font-style: italic;
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-built_in {
+    color: var(--hljs-keyword);
+}
+
+.hljs-string,
+.hljs-addition {
+    color: var(--hljs-string);
+}
+
+.hljs-number,
+.hljs-literal {
+    color: var(--hljs-number);
+}
+
+.hljs-title,
+.hljs-section,
+.hljs-function {
+    color: var(--hljs-title);
+}
+
+.hljs-attr,
+.hljs-attribute,
+.hljs-variable,
+.hljs-property {
+    color: var(--hljs-attr);
+}

@@ -277,7 +277,7 @@ export type AcpSessionUpdatePayload =
     * **GREEN:** минимальная реализация `web/src/acp/session-reducer.ts`. Запуск: `npm --prefix web test` (ожидается PASS).
     * **REFACTOR:** выделение чистых селекторов и обработчиков `session/update` по вариантам.
     * *Контрольная точка 2 (для возможного коммита по запросу пользователя): транспорт и state-ядро ACP.*
-5. [ ] **Шаг 5: UI-компоненты, темы, автоподгрузка скролла и интеграция приложения**
+5. [x] **Шаг 5: UI-компоненты, темы, автоподгрузка скролла и интеграция приложения**
     * **RED:** падающие компонентные тесты в `web/tests/chat-viewport.test.tsx` (рендер последних 20 сообщений, автоподгрузка при `scrollTop <= threshold` с сохранением позиции скролла, отключение автоскролла при прокрутке вверх и возврат кнопкой «↓ Вниз», клик по локации `toolCall` ведёт на `/files?path=...`, ручное раскрытие `AgentSteps` не сбрасывается стримом). Запуск: `npm --prefix web test` (ожидается FAIL).
     * **GREEN:** реализация CSS-токенов тем (`tokens.css`, `global.css`, типографика из `MarkdownContent.module.css` без хардкодных hex), перенос/адаптация компонентов из `agent-cookie` (`Collapsible.tsx`, `AgentSteps.tsx`, `ToolCallItem.tsx`, `MessageItem.tsx`, `TypingIndicator.tsx`, `ErrorMessage.tsx`, база ввода в `PromptComposer.tsx`) и сборка остальных компонентов (`AppShell.tsx`, `SessionSidebar.tsx`, `ChatViewport.tsx`, `PermissionModal.tsx`, `main.tsx`) с `visibilitychange`/`pageshow` реконнектом и обработкой `-32000`. Запуск: `npm --prefix web test` и `npm --prefix web run build` (ожидается PASS).
     * **REFACTOR:** декомпозиция крупных JSX-блоков, проверка отсутствия дублирования.

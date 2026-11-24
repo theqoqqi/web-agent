@@ -1,0 +1,91 @@
+.root {
+    overflow: hidden;
+}
+
+.trigger {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    text-align: left;
+    color: inherit;
+    transition: background-color 0.15s ease;
+}
+
+.trigger:disabled {
+    cursor: default;
+}
+
+.headerContent {
+    display: flex;
+    gap: 6px;
+    min-width: 0;
+    flex: 1;
+}
+
+.chevron {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: var(--text-muted);
+    transition: transform 0.2s ease;
+}
+
+.chevronOpen {
+    transform: rotate(180deg);
+}
+
+.body {
+    min-width: 0;
+}
+
+.card {
+    border-radius: 8px;
+    border: 1px solid var(--border-default);
+    background: var(--bg-surface);
+    transition: border-color 0.15s ease;
+}
+
+.card:not(.disabled):hover {
+    border-color: var(--border-strong);
+}
+
+.card > .trigger {
+    align-items: center;
+    padding: 8px 10px;
+}
+
+.card > .trigger:not(:disabled):hover {
+    background: var(--bg-surface-hover);
+}
+
+.card > .trigger > .headerContent {
+    align-items: center;
+}
+
+.card > .body {
+    border-top: 1px solid var(--border-default);
+    padding: 8px 10px;
+}
+
+.flat {
+    background: transparent;
+    border: none;
+}
+
+.flat > .trigger {
+    align-items: flex-start;
+    padding: 2px 0;
+}
+
+.flat > .trigger > .headerContent {
+    align-items: flex-start;
+}
+
+.flat > .trigger > .chevron {
+    margin-top: 2px;
+}
