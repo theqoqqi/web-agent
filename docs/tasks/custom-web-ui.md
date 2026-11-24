@@ -263,7 +263,7 @@ export type AcpSessionUpdatePayload =
     * **RED:** падающие тесты в `web/tests/uuid.test.ts` (формат v4 при отсутствии `crypto.randomUUID`), `web/tests/clipboard.test.ts` (fallback на `execCommand` когда `navigator.clipboard` недоступен/отклоняет промис), `web/tests/storage.test.ts` (дефолт `/srv` и восстановление при битом JSON в `localStorage`) и `web/tests/pluralize.test.ts` (склонение 1/2/5/11-19). Запуск: `npm --prefix web test` (ожидается FAIL).
     * **GREEN:** минимальная реализация `web/src/lib/uuid.ts`, `web/src/lib/clipboard.ts`, `web/src/lib/storage.ts`, перенос `web/src/lib/pluralize.ts` из `agent-cookie`. Запуск: `npm --prefix web test` (ожидается PASS).
     * **REFACTOR:** приведение хелперов к единому стилю (отступы 4 пробела, Stepdown Rule, без лишних комментариев).
-2. [ ] **Шаг 2: Ссылки `/files` и безопасный рендер Markdown с подсветкой кода**
+2. [x] **Шаг 2: Ссылки `/files` и безопасный рендер Markdown с подсветкой кода**
     * **RED:** падающие тесты в `web/tests/file-links.test.ts` (конвертация `file:///srv/a.ts#L12`, Windows/POSIX путей и `toolCall.locations` в `/files?path=...#L12`, сохранение обычных `https://` и запрет `javascript:`) и `web/tests/markdown.test.ts` (подсветка кода `highlight.js`, кнопка копирования или разметка блока кода, нейтрализация `<script>`/`onerror=`). Запуск: `npm --prefix web test` (ожидается FAIL).
     * **GREEN:** минимальная реализация `web/src/lib/file-links.ts` и `web/src/lib/markdown.ts`. Запуск: `npm --prefix web test` (ожидается PASS).
     * **REFACTOR:** вынесение общих правил нормализации URL, проверка Stepdown Rule.
