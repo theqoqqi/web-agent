@@ -144,6 +144,26 @@ export function removeStoredSession(sessionId: string): StoredSession[] {
     return next;
 }
 
+export function renameStoredSession(sessionId: string, newTitle: string): StoredSession[] {
+    const trimmedTitle = newTitle.trim();
+    const sessions = getStoredSessions();
+    const target = sessions.find((item) => item.sessionId === sessionId);
+
+    if (!target) {
+        return sessions;
+    }
+
+    const updatedTitle = trimmedTitle.length > 0 ? trimmedTitle : sessionId;
+    const next = sessions.map((item) =>
+        item.sessionId === sessionId
+            ? { ...item, title: updatedTitle, updatedAt: Date.now() }
+            : item,
+    );
+
+    writeStorageItem(SESSIONS_STORAGE_KEY, JSON.stringify(next));
+    return next;
+}
+
 function isStoredSession(value: unknown): value is StoredSession {
     if (typeof value !== "object" || value === null) {
         return false;

@@ -32,6 +32,8 @@ export function AppShell() {
         cancelPrompt,
         selectMode,
         selectModel,
+        setConfigOption,
+        renameSession,
         respondPermission,
         loadMoreHistory,
     } = useAcpSession();
@@ -61,7 +63,9 @@ export function AppShell() {
 
     const isConnected = state.connectionStatus === "connected";
     const activePermission = state.pendingPermissions[0] ?? null;
-    const hasAgentSettings = state.modes.length > 0 || state.models.length > 0;
+    const thoughtOption = state.configOptions.find((o) => o.id === "thought_level");
+    const hasAgentSettings =
+        state.modes.length > 0 || state.models.length > 0 || Boolean(thoughtOption);
 
     return (
         <div className={styles.shell}>
@@ -98,6 +102,7 @@ export function AppShell() {
                             }
                             return ok;
                         }}
+                        onRenameSession={renameSession}
                     />
                 </>
             )}
@@ -191,6 +196,31 @@ export function AppShell() {
                                                             value={model.modelId}
                                                         >
                                                             {model.name}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </label>
+                                        )}
+
+                                        {thoughtOption && (
+                                            <label className={styles.settingField}>
+                                                <span className={styles.settingLabel}>
+                                                    {thoughtOption.name || "Уровень размышлений"}
+                                                </span>
+                                                <select
+                                                    className={styles.settingSelect}
+                                                    value={thoughtOption.currentValue}
+                                                    disabled={state.isGenerating}
+                                                    onChange={(event) =>
+                                                        void setConfigOption(
+                                                            "thought_level",
+                                                            event.currentTarget.value,
+                                                        )
+                                                    }
+                                                >
+                                                    {thoughtOption.options.map((opt) => (
+                                                        <option key={opt.value} value={opt.value}>
+                                                            {opt.name}
                                                         </option>
                                                     ))}
                                                 </select>

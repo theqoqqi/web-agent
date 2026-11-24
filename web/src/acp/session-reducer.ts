@@ -1,6 +1,7 @@
 import { generateUuid } from "../lib/uuid";
 import type {
     AcpAvailableCommand,
+    AcpConfigOption,
     AcpModeOption,
     AcpModelOption,
     AcpPermissionRequestParams,
@@ -68,6 +69,7 @@ export interface SessionState {
     models: AcpModelOption[];
     currentModelId: string | null;
     availableCommands: AcpAvailableCommand[];
+    configOptions: AcpConfigOption[];
     pendingPermissions: PendingPermissionItem[];
 }
 
@@ -94,6 +96,16 @@ export type SessionAction =
           cwd: string;
           modes?: AcpSessionModesState;
           models?: AcpSessionModelsState;
+          configOptions?: AcpConfigOption[];
+      }
+    | {
+          type: "SET_CONFIG_OPTIONS";
+          configOptions: AcpConfigOption[];
+      }
+    | {
+          type: "SET_CONFIG_OPTION_VALUE";
+          configId: string;
+          value: string;
       }
     | {
           type: "SET_CURRENT_MODE";
@@ -151,6 +163,7 @@ export function createInitialSessionState(cwd: string): SessionState {
         models: [],
         currentModelId: null,
         availableCommands: [],
+        configOptions: [],
         pendingPermissions: [],
     };
 }
@@ -210,6 +223,7 @@ export function sessionReducer(
                 messages: [],
                 visibleCount: DEFAULT_VISIBLE_MESSAGES,
                 availableCommands: [],
+                configOptions: [],
                 pendingPermissions: [],
             };
 
@@ -224,6 +238,23 @@ export function sessionReducer(
                 currentModeId: action.modes?.currentModeId ?? state.currentModeId,
                 models: action.models?.availableModels ?? state.models,
                 currentModelId: action.models?.currentModelId ?? state.currentModelId,
+                configOptions: action.configOptions ?? state.configOptions,
+            };
+
+        case "SET_CONFIG_OPTIONS":
+            return {
+                ...state,
+                configOptions: action.configOptions,
+            };
+
+        case "SET_CONFIG_OPTION_VALUE":
+            return {
+                ...state,
+                configOptions: state.configOptions.map((opt) =>
+                    opt.id === action.configId
+                        ? { ...opt, currentValue: action.value }
+                        : opt,
+                ),
             };
 
         case "SET_CURRENT_MODE":

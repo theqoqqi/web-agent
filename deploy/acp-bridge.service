@@ -13,7 +13,7 @@ Environment=ACP_BRIDGE_PORT=3001
 Environment=ACP_BRIDGE_WS_PATH=/ws
 Environment=ACP_COMMAND=agy
 Environment=ACP_ARGS=acp
-Environment=ACP_SANDBOX_DIR=/root/acp-sandbox
+Environment=ACP_SANDBOX_DIR=/srv
 Environment=ACP_SHUTDOWN_GRACE_MS=3000
 ExecStart=/usr/bin/node /opt/web-agent/dist/index.js
 Restart=on-failure

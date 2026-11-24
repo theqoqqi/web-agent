@@ -62,6 +62,21 @@ export interface AcpModeOption {
     description?: string;
 }
 
+export interface AcpConfigSelectOption {
+    value: string;
+    name: string;
+    description?: string;
+}
+
+export interface AcpConfigOption {
+    id: string;
+    name: string;
+    category?: string;
+    type: "select" | string;
+    currentValue: string;
+    options: AcpConfigSelectOption[];
+}
+
 export interface AcpSessionModelsState {
     currentModelId?: string;
     availableModels?: AcpModelOption[];
@@ -76,11 +91,17 @@ export interface AcpNewSessionResult {
     sessionId: string;
     modes?: AcpSessionModesState;
     models?: AcpSessionModelsState;
+    configOptions?: AcpConfigOption[];
 }
 
 export interface AcpLoadSessionResult {
     modes?: AcpSessionModesState;
     models?: AcpSessionModelsState;
+    configOptions?: AcpConfigOption[];
+}
+
+export interface AcpSetConfigOptionResult {
+    configOptions?: AcpConfigOption[];
 }
 
 export interface AcpPromptResult {

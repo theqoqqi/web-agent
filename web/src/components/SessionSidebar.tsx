@@ -1,4 +1,4 @@
-import { FolderInput, Plus, Trash2 } from "lucide-react";
+import { Check, FolderInput, Pencil, Plus, Trash2, X } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import type { StoredSession } from "../lib/storage";
 import styles from "./SessionSidebar.module.css";
@@ -14,6 +14,7 @@ export interface SessionSidebarProps {
     onSelectSession: (session: StoredSession) => void;
     onDeleteSession: (sessionId: string) => void;
     onOpenSessionById: (sessionId: string) => Promise<boolean>;
+    onRenameSession: (sessionId: string, newTitle: string) => void;
 }
 
 export function SessionSidebar({
@@ -27,10 +28,13 @@ export function SessionSidebar({
     onSelectSession,
     onDeleteSession,
     onOpenSessionById,
+    onRenameSession,
 }: SessionSidebarProps) {
     const [isImportOpen, setIsImportOpen] = useState(false);
     const [importId, setImportId] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+    const [editingTitle, setEditingTitle] = useState("");
 
     async function handleImportSubmit(event: FormEvent) {
         event.preventDefault();
@@ -48,6 +52,26 @@ export function SessionSidebar({
             setIsImportOpen(false);
             setImportId("");
         }
+    }
+
+    function startEditing(session: StoredSession) {
+        setEditingSessionId(session.sessionId);
+        setEditingTitle(session.title || session.sessionId);
+    }
+
+    function saveEditing() {
+        if (!editingSessionId) {
+            return;
+        }
+
+        onRenameSession(editingSessionId, editingTitle);
+        setEditingSessionId(null);
+        setEditingTitle("");
+    }
+
+    function cancelEditing() {
+        setEditingSessionId(null);
+        setEditingTitle("");
     }
 
     return (
@@ -129,6 +153,55 @@ export function SessionSidebar({
                 ) : (
                     sessions.map((session) => {
                         const isActive = session.sessionId === activeSessionId;
+                        const isEditing = session.sessionId === editingSessionId;
+
+                        if (isEditing) {
+                            return (
+                                <div
+                                    key={session.sessionId}
+                                    className={[
+                                        styles.sessionItem,
+                                        styles.sessionItemEditing,
+                                    ].join(" ")}
+                                >
+                                    <input
+                                        type="text"
+                                        className={styles.renameInput}
+                                        value={editingTitle}
+                                        autoFocus
+                                        onChange={(event) =>
+                                            setEditingTitle(event.currentTarget.value)
+                                        }
+                                        onKeyDown={(event) => {
+                                            if (event.key === "Enter") {
+                                                event.preventDefault();
+                                                saveEditing();
+                                            } else if (event.key === "Escape") {
+                                                cancelEditing();
+                                            }
+                                        }}
+                                    />
+                                    <button
+                                        type="button"
+                                        className={styles.actionIconBtn}
+                                        title="Сохранить"
+                                        aria-label="Сохранить название"
+                                        onClick={saveEditing}
+                                    >
+                                        <Check size={14} />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className={styles.actionIconBtn}
+                                        title="Отмена"
+                                        aria-label="Отменить переименование"
+                                        onClick={cancelEditing}
+                                    >
+                                        <X size={14} />
+                                    </button>
+                                </div>
+                            );
+                        }
 
                         return (
                             <div
@@ -152,15 +225,27 @@ export function SessionSidebar({
                                     <span className={styles.sessionMeta}>{session.cwd}</span>
                                 </button>
 
-                                <button
-                                    type="button"
-                                    className={styles.deleteBtn}
-                                    aria-label={`Удалить сессию ${session.title}`}
-                                    title="Удалить из списка"
-                                    onClick={() => onDeleteSession(session.sessionId)}
-                                >
-                                    <Trash2 size={14} />
-                                </button>
+                                <div className={styles.itemActions}>
+                                    <button
+                                        type="button"
+                                        className={styles.actionIconBtn}
+                                        aria-label={`Переименовать сессию ${session.title}`}
+                                        title="Переименовать"
+                                        onClick={() => startEditing(session)}
+                                    >
+                                        <Pencil size={13} />
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        className={[styles.actionIconBtn, styles.deleteBtn].join(" ")}
+                                        aria-label={`Удалить сессию ${session.title}`}
+                                        title="Удалить из списка"
+                                        onClick={() => onDeleteSession(session.sessionId)}
+                                    >
+                                        <Trash2 size={13} />
+                                    </button>
+                                </div>
                             </div>
                         );
                     })

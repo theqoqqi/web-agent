@@ -12,6 +12,7 @@ import type {
     AcpPermissionRequestParams,
     AcpPermissionResponse,
     AcpSessionUpdateParams,
+    AcpSetConfigOptionResult,
 } from "../acp/types";
 import { AcpWsTransport } from "../acp/ws-transport";
 import {
@@ -20,6 +21,7 @@ import {
     getStoredCwd,
     getStoredSessions,
     removeStoredSession,
+    renameStoredSession,
     setLastActiveSessionId,
     setStoredCwd,
     upsertStoredSession,
@@ -101,6 +103,7 @@ export function useAcpSession() {
                 cwd: normalizedCwd,
                 modes: result.modes,
                 models: result.models,
+                configOptions: result.configOptions,
             });
 
             return result.sessionId;
@@ -135,6 +138,7 @@ export function useAcpSession() {
                 cwd: normalizedCwd,
                 modes: result.modes,
                 models: result.models,
+                configOptions: result.configOptions,
             });
         },
         [],
@@ -501,6 +505,44 @@ export function useAcpSession() {
         [handleSessionError],
     );
 
+    const setConfigOption = useCallback(
+        async (configId: string, value: string) => {
+            const client = clientRef.current;
+            const sessionId = activeSessionIdRef.current;
+
+            if (!client || !sessionId) {
+                return;
+            }
+
+            dispatch({ type: "SET_CONFIG_OPTION_VALUE", configId, value });
+
+            try {
+                const res = await client.request<AcpSetConfigOptionResult>(
+                    "session/set_config_option",
+                    {
+                        sessionId,
+                        configId,
+                        value,
+                    },
+                );
+
+                if (res?.configOptions) {
+                    dispatch({
+                        type: "SET_CONFIG_OPTIONS",
+                        configOptions: res.configOptions,
+                    });
+                }
+            } catch (err) {
+                handleSessionError(err, `Не удалось установить опцию ${configId}`);
+            }
+        },
+        [handleSessionError],
+    );
+
+    const renameSession = useCallback((sessionId: string, newTitle: string) => {
+        setSessions(renameStoredSession(sessionId, newTitle));
+    }, []);
+
     const respondPermission = useCallback(
         (id: string, response: AcpPermissionResponse) => {
             const resolver = permissionResolversRef.current.get(id);
@@ -540,6 +582,8 @@ export function useAcpSession() {
         cancelPrompt,
         selectMode,
         selectModel,
+        setConfigOption,
+        renameSession,
         respondPermission,
         loadMoreHistory,
     };

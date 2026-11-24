@@ -6,6 +6,7 @@ import {
     getStoredSessions,
     getStoredTheme,
     removeStoredSession,
+    renameStoredSession,
     setLastActiveSessionId,
     setStoredCwd,
     setStoredTheme,
@@ -188,5 +189,23 @@ describe("storage", () => {
 
         setStoredCwd("/srv/new-cwd");
         expect(getStoredCwd()).toBe("/srv/new-cwd");
+    });
+
+    test("переименовывает существующую сессию и игнорирует отсутствующую", () => {
+        upsertStoredSession({
+            sessionId: "s-1",
+            cwd: "/srv",
+            title: "Старое имя",
+            updatedAt: 100,
+        });
+
+        const renamed = renameStoredSession("s-1", "  Новое имя  ");
+        expect(renamed[0]?.title).toBe("Новое имя");
+
+        const fallback = renameStoredSession("s-1", "   ");
+        expect(fallback[0]?.title).toBe("s-1");
+
+        const unhit = renameStoredSession("non-existent", "Test");
+        expect(unhit).toHaveLength(1);
     });
 });
