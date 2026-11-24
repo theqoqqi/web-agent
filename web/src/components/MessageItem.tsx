@@ -74,21 +74,21 @@ export const MessageItem = memo(function MessageItem({
                         {hasText && <MarkdownView content={message.content} cwd={cwd} />}
                     </>
                 )}
-
-                {hasText && (
-                    <div className={styles.actions}>
-                        <button
-                            type="button"
-                            aria-label="Копировать сообщение"
-                            className={[styles.copyBtn, isUser ? styles.userCopyBtn : ""].filter(Boolean).join(" ")}
-                            onClick={() => void handleCopyMessage()}
-                        >
-                            {copied ? <Check size={12} /> : <Copy size={12} />}
-                            <span>{copied ? "Скопировано" : "Копировать"}</span>
-                        </button>
-                    </div>
-                )}
             </div>
+
+            {hasText && (
+                <div className={styles.actions}>
+                    <button
+                        type="button"
+                        aria-label="Копировать сообщение"
+                        title={copied ? "Скопировано" : "Копировать"}
+                        className={styles.copyBtn}
+                        onClick={() => void handleCopyMessage()}
+                    >
+                        {copied ? <Check size={14} /> : <Copy size={14} />}
+                    </button>
+                </div>
+            )}
         </div>
     );
 });
