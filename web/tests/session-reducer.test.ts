@@ -5,6 +5,7 @@ import {
     selectVisibleMessages,
     sessionReducer,
 } from "../src/acp/session-reducer";
+import type { AcpSessionUpdatePayload } from "../src/acp/types";
 
 describe("sessionReducer", () => {
     test("склеивает agent_thought_chunk, tool_call -> tool_call_update и agent_message_chunk в один ответ ассистента", () => {
@@ -237,5 +238,31 @@ describe("sessionReducer", () => {
             message: "Authentication required",
             isAuthError: true,
         });
+    });
+
+    test("игнорирует неизвестные sessionUpdate вроде usage_update без затирания состояния", () => {
+        const initial = createInitialSessionState("/srv");
+
+        const afterUnknown = sessionReducer(initial, {
+            type: "SESSION_UPDATE",
+            update: {
+                sessionUpdate: "usage_update",
+                used: 0,
+                size: 1048576,
+            } as unknown as AcpSessionUpdatePayload,
+        });
+
+        expect(afterUnknown).toBe(initial);
+        expect(afterUnknown.cwd).toBe("/srv");
+
+        const afterBadChunk = sessionReducer(initial, {
+            type: "SESSION_UPDATE",
+            update: {
+                sessionUpdate: "agent_message_chunk",
+                content: { type: "image", data: "abc" },
+            } as unknown as AcpSessionUpdatePayload,
+        });
+
+        expect(afterBadChunk).toBe(initial);
     });
 });

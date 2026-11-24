@@ -291,6 +291,9 @@ export function sessionReducer(
 
         case "SESSION_UPDATE":
             return applySessionUpdate(state, action.update);
+
+        default:
+            return state;
     }
 }
 
@@ -298,33 +301,62 @@ function applySessionUpdate(
     state: SessionState,
     update: AcpSessionUpdatePayload,
 ): SessionState {
+    if (!update || typeof update !== "object") {
+        return state;
+    }
+
     switch (update.sessionUpdate) {
-        case "user_message_chunk":
+        case "user_message_chunk": {
+            const text = extractChunkText(update.content);
+
+            if (text === null) {
+                return state;
+            }
+
             return {
                 ...state,
-                messages: appendUserChunk(state.messages, update.content.text),
+                messages: appendUserChunk(state.messages, text),
             };
+        }
 
-        case "agent_message_chunk":
+        case "agent_message_chunk": {
+            const text = extractChunkText(update.content);
+
+            if (text === null) {
+                return state;
+            }
+
             return {
                 ...state,
                 messages: updateLastAssistant(state.messages, (assistant) => ({
                     ...assistant,
-                    content: assistant.content + update.content.text,
+                    content: assistant.content + text,
                 })),
             };
+        }
 
-        case "agent_thought_chunk":
+        case "agent_thought_chunk": {
+            const text = extractChunkText(update.content);
+
+            if (text === null) {
+                return state;
+            }
+
             return {
                 ...state,
                 messages: updateLastAssistant(state.messages, (assistant) => ({
                     ...assistant,
-                    thought: assistant.thought + update.content.text,
+                    thought: assistant.thought + text,
                 })),
             };
+        }
 
         case "tool_call":
         case "tool_call_update":
+            if (typeof update.toolCallId !== "string") {
+                return state;
+            }
+
             return {
                 ...state,
                 messages: updateLastAssistant(state.messages, (assistant) => ({
@@ -334,16 +366,27 @@ function applySessionUpdate(
             };
 
         case "current_mode_update":
+            if (typeof update.currentModeId !== "string") {
+                return state;
+            }
+
             return {
                 ...state,
                 currentModeId: update.currentModeId,
             };
 
         case "available_commands_update":
+            if (!Array.isArray(update.availableCommands)) {
+                return state;
+            }
+
             return {
                 ...state,
                 availableCommands: update.availableCommands,
             };
+
+        default:
+            return state;
     }
 }
 
@@ -425,4 +468,13 @@ function upsertToolCall(
         merged,
         ...existingList.slice(index + 1),
     ];
+}
+
+function extractChunkText(content: unknown): string | null {
+    if (typeof content !== "object" || content === null) {
+        return null;
+    }
+
+    const record = content as { text?: unknown };
+    return typeof record.text === "string" ? record.text : null;
 }

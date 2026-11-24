@@ -168,8 +168,9 @@ export function useAcpSession() {
                     const payload = params as AcpSessionUpdateParams;
 
                     if (
-                        activeSessionIdRef.current &&
-                        payload.sessionId !== activeSessionIdRef.current
+                        !payload.update ||
+                        (activeSessionIdRef.current &&
+                            payload.sessionId !== activeSessionIdRef.current)
                     ) {
                         return;
                     }
