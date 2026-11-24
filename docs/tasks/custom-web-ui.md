@@ -268,7 +268,7 @@ export type AcpSessionUpdatePayload =
     * **GREEN:** минимальная реализация `web/src/lib/file-links.ts` и `web/src/lib/markdown.ts`. Запуск: `npm --prefix web test` (ожидается PASS).
     * **REFACTOR:** вынесение общих правил нормализации URL, проверка Stepdown Rule.
     * *Контрольная точка 1 (для возможного коммита по запросу пользователя): каркас `web/` и базовые утилиты.*
-3. [ ] **Шаг 3: WebSocket-транспорт (`ws-transport.ts`) и JSON-RPC клиент (`rpc-client.ts`)**
+3. [x] **Шаг 3: WebSocket-транспорт (`ws-transport.ts`) и JSON-RPC клиент (`rpc-client.ts`)**
     * **RED:** падающие тесты в `web/tests/ws-transport.test.ts` (подключение с subprotocol `"acp.v1"`, склейка/сплит `\n`-фреймов, heartbeat `$/ping` каждые 25s, коннект-таймаут) и `web/tests/rpc-client.test.ts` (корреляция id, отсутствие 60s таймаута для `session/prompt` при 60s таймауте/отсечке обычных запросов, ответ `-32601` на `fs/read_text_file`, обработка `-32000`, передача входящих `session/request_permission` и `session/update`). Запуск: `npm --prefix web test` (ожидается FAIL).
     * **GREEN:** минимальная реализация `web/src/acp/types.ts`, `web/src/acp/ws-transport.ts`, `web/src/acp/rpc-client.ts`. Запуск: `npm --prefix web test` (ожидается PASS).
     * **REFACTOR:** унификация обработки таймаутов и reject при закрытии сокета.
