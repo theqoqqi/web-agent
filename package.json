@@ -7,9 +7,12 @@
         "dev": "tsx src/index.ts",
         "build": "tsc -p tsconfig.build.json",
         "start": "node dist/index.js",
-        "patch:acp-ui": "tsx src/patch-acp-ui.ts",
         "typecheck": "tsc --noEmit",
-        "test": "vitest run"
+        "test": "vitest run",
+        "web:dev": "npm --prefix web run dev",
+        "web:build": "npm --prefix web run build",
+        "web:typecheck": "npm --prefix web run typecheck",
+        "web:test": "npm --prefix web test"
     },
     "dependencies": {
         "highlight.js": "^11.12.0",

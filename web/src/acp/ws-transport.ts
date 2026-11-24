@@ -181,6 +181,16 @@ export class AcpWsTransport {
     }
 
     private handleIncomingChunk(chunk: string): void {
+        if (this.lineBuffer.length === 0 && !chunk.includes("\n")) {
+            const trimmed = chunk.trim();
+
+            if (trimmed.length > 0) {
+                this.dispatchLine(trimmed);
+            }
+
+            return;
+        }
+
         this.lineBuffer += chunk;
 
         while (true) {
@@ -199,17 +209,32 @@ export class AcpWsTransport {
 
             this.dispatchLine(line);
         }
+
+        const tail = this.lineBuffer.trim();
+
+        if (tail.length > 0) {
+            try {
+                const parsed = JSON.parse(tail) as JsonRpcMessage;
+                this.lineBuffer = "";
+                this.emitMessage(parsed);
+            } catch {
+                return;
+            }
+        }
     }
 
     private dispatchLine(line: string): void {
         try {
             const parsed = JSON.parse(line) as JsonRpcMessage;
-
-            for (const handler of this.messageHandlers) {
-                handler(parsed);
-            }
+            this.emitMessage(parsed);
         } catch (err) {
             console.warn("Некорректная NDJSON-строка от ACP:", err);
+        }
+    }
+
+    private emitMessage(parsed: JsonRpcMessage): void {
+        for (const handler of this.messageHandlers) {
+            handler(parsed);
         }
     }
 

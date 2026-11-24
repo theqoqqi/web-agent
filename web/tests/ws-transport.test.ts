@@ -141,4 +141,30 @@ describe("AcpWsTransport", () => {
         await rejection;
         expect(FakeWebSocket.instances[0]?.closedCalls).toBe(1);
     });
+
+    test("обрабатывает одиночные JSON-RPC фреймы от моста без завершающего \\n", async () => {
+        const received: unknown[] = [];
+
+        const transport = new AcpWsTransport({
+            url: "ws://localhost:3001/ws",
+            createWebSocket: (url, protocols) =>
+                new FakeWebSocket(url, protocols) as unknown as WebSocket,
+            onMessage: (msg) => received.push(msg),
+        });
+
+        const connectPromise = transport.connect();
+        const socket = FakeWebSocket.instances[0];
+        socket?.emitOpen();
+        await connectPromise;
+
+        socket?.emitMessage('{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":1}}');
+        socket?.emitMessage('{"jsonrpc":"2.0","method":"session/update","params":{"ok":true}}');
+
+        expect(received).toEqual([
+            { jsonrpc: "2.0", id: 1, result: { protocolVersion: 1 } },
+            { jsonrpc: "2.0", method: "session/update", params: { ok: true } },
+        ]);
+
+        transport.close();
+    });
 });

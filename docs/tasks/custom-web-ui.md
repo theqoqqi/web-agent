@@ -282,7 +282,7 @@ export type AcpSessionUpdatePayload =
     * **GREEN:** реализация CSS-токенов тем (`tokens.css`, `global.css`, типографика из `MarkdownContent.module.css` без хардкодных hex), перенос/адаптация компонентов из `agent-cookie` (`Collapsible.tsx`, `AgentSteps.tsx`, `ToolCallItem.tsx`, `MessageItem.tsx`, `TypingIndicator.tsx`, `ErrorMessage.tsx`, база ввода в `PromptComposer.tsx`) и сборка остальных компонентов (`AppShell.tsx`, `SessionSidebar.tsx`, `ChatViewport.tsx`, `PermissionModal.tsx`, `main.tsx`) с `visibilitychange`/`pageshow` реконнектом и обработкой `-32000`. Запуск: `npm --prefix web test` и `npm --prefix web run build` (ожидается PASS).
     * **REFACTOR:** декомпозиция крупных JSX-блоков, проверка отсутствия дублирования.
     * *Контрольная точка 3 (для возможного коммита по запросу пользователя): готовый UI в `web/`.*
-6. [ ] **Шаг 6: Обновление деплоя, проверка на сервере и удаление легаси-патчера**
+6. [x] **Шаг 6: Обновление деплоя, проверка на сервере и удаление легаси-патчера**
     * Замена `scripts/build-acp-ui.sh` или добавление шага сборки/деплоя `web/dist` -> `/opt/acp-web/dist-web` (с сохранением `deploy/nginx-acp-ui.conf` без изменения `root`).
     * Проверка сборки и работы нового UI на сервере (чат, стриминг, темы, автоподгрузка вверх, умный автоскролл, `/files` ссылки, копирование по HTTP, `session/load`).
     * После успешной проверки на проде: удаление `src/patch-acp-ui.ts`, `scripts/build-acp-ui.sh`, `tests/patch-acp-ui.test.ts` и скрипта `patch:acp-ui` из корневого `package.json`.
