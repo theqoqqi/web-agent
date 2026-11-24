@@ -83,17 +83,36 @@ export function AgentSteps({
 
 function ThoughtStepItem({ text }: { text: string }) {
     const [isOpen, setIsOpen] = useState(false);
+    const firstLine = getFirstThoughtLine(text);
 
     return (
         <Collapsible
             isOpen={isOpen}
             onToggle={() => setIsOpen((prev) => !prev)}
             variant="flat"
-            header={<span className={styles.thoughtTitle}>Размышления</span>}
+            header={
+                <span
+                    className={styles.thoughtTitle}
+                    title={isOpen ? "Размышления" : firstLine}
+                >
+                    {isOpen ? "Размышления" : firstLine}
+                </span>
+            }
         >
             <p className={styles.thoughtItem}>{text}</p>
         </Collapsible>
     );
+}
+
+function getFirstThoughtLine(rawText: string): string {
+    const lines = rawText.split("\n");
+    for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.length > 0) {
+            return trimmed;
+        }
+    }
+    return "Размышления";
 }
 
 function buildStepsTitle(
