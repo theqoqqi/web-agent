@@ -15,12 +15,33 @@ export const HISTORY_LOAD_STEP = 20;
 
 export type ConnectionStatus = "disconnected" | "connecting" | "connected";
 
+export type AgentStepItem =
+    | {
+          kind: "thought";
+          id: string;
+          text: string;
+      }
+    | {
+          kind: "tool_call";
+          toolCall: AcpToolCall;
+      };
+
+export type MessageBlock =
+    | {
+          kind: "text";
+          id: string;
+          text: string;
+      }
+    | {
+          kind: "steps";
+          id: string;
+          items: AgentStepItem[];
+      };
+
 export interface ChatMessage {
     id: string;
     role: "user" | "assistant";
-    content: string;
-    thought: string;
-    toolCalls: AcpToolCall[];
+    blocks: MessageBlock[];
 }
 
 export interface PendingPermissionItem {
@@ -228,9 +249,13 @@ export function sessionReducer(
                     {
                         id: action.id,
                         role: "user",
-                        content: action.text,
-                        thought: "",
-                        toolCalls: [],
+                        blocks: [
+                            {
+                                kind: "text",
+                                id: generateUuid(),
+                                text: action.text,
+                            },
+                        ],
                     },
                 ],
             };
@@ -330,7 +355,7 @@ function applySessionUpdate(
                 ...state,
                 messages: updateLastAssistant(state.messages, (assistant) => ({
                     ...assistant,
-                    content: assistant.content + text,
+                    blocks: appendTextBlock(assistant.blocks, text),
                 })),
             };
         }
@@ -346,7 +371,7 @@ function applySessionUpdate(
                 ...state,
                 messages: updateLastAssistant(state.messages, (assistant) => ({
                     ...assistant,
-                    thought: assistant.thought + text,
+                    blocks: appendThoughtStep(assistant.blocks, text),
                 })),
             };
         }
@@ -361,7 +386,7 @@ function applySessionUpdate(
                 ...state,
                 messages: updateLastAssistant(state.messages, (assistant) => ({
                     ...assistant,
-                    toolCalls: upsertToolCall(assistant.toolCalls, update),
+                    blocks: upsertToolCallStep(assistant.blocks, update),
                 })),
             };
 
@@ -401,7 +426,7 @@ function appendUserChunk(
             ...messages.slice(0, -1),
             {
                 ...last,
-                content: last.content + text,
+                blocks: appendTextBlock(last.blocks, text),
             },
         ];
     }
@@ -411,9 +436,13 @@ function appendUserChunk(
         {
             id: generateUuid(),
             role: "user",
-            content: text,
-            thought: "",
-            toolCalls: [],
+            blocks: [
+                {
+                    kind: "text",
+                    id: generateUuid(),
+                    text,
+                },
+            ],
         },
     ];
 }
@@ -431,24 +460,164 @@ function updateLastAssistant(
     const created: ChatMessage = {
         id: generateUuid(),
         role: "assistant",
-        content: "",
-        thought: "",
-        toolCalls: [],
+        blocks: [],
     };
 
     return [...messages, updater(created)];
 }
 
-function upsertToolCall(
-    existingList: AcpToolCall[],
-    incoming: Extract<AcpSessionUpdatePayload, { sessionUpdate: "tool_call" | "tool_call_update" }>,
-): AcpToolCall[] {
-    const index = existingList.findIndex(
-        (item) => item.toolCallId === incoming.toolCallId,
-    );
-    const current = index >= 0 ? existingList[index] : undefined;
+function appendTextBlock(
+    blocks: MessageBlock[],
+    text: string,
+): MessageBlock[] {
+    const last = blocks[blocks.length - 1];
 
-    const merged: AcpToolCall = {
+    if (last && last.kind === "text") {
+        return [
+            ...blocks.slice(0, -1),
+            {
+                ...last,
+                text: last.text + text,
+            },
+        ];
+    }
+
+    return [
+        ...blocks,
+        {
+            kind: "text",
+            id: generateUuid(),
+            text,
+        },
+    ];
+}
+
+function appendThoughtStep(
+    blocks: MessageBlock[],
+    text: string,
+): MessageBlock[] {
+    const lastBlock = blocks[blocks.length - 1];
+
+    if (lastBlock && lastBlock.kind === "steps") {
+        const lastItem = lastBlock.items[lastBlock.items.length - 1];
+        const nextItems: AgentStepItem[] =
+            lastItem && lastItem.kind === "thought"
+                ? [
+                      ...lastBlock.items.slice(0, -1),
+                      {
+                          ...lastItem,
+                          text: lastItem.text + text,
+                      },
+                  ]
+                : [
+                      ...lastBlock.items,
+                      {
+                          kind: "thought",
+                          id: generateUuid(),
+                          text,
+                      },
+                  ];
+
+        return [
+            ...blocks.slice(0, -1),
+            {
+                ...lastBlock,
+                items: nextItems,
+            },
+        ];
+    }
+
+    return [
+        ...blocks,
+        {
+            kind: "steps",
+            id: generateUuid(),
+            items: [
+                {
+                    kind: "thought",
+                    id: generateUuid(),
+                    text,
+                },
+            ],
+        },
+    ];
+}
+
+function upsertToolCallStep(
+    blocks: MessageBlock[],
+    incoming: Extract<AcpSessionUpdatePayload, { sessionUpdate: "tool_call" | "tool_call_update" }>,
+): MessageBlock[] {
+    for (let blockIndex = blocks.length - 1; blockIndex >= 0; blockIndex -= 1) {
+        const block = blocks[blockIndex];
+
+        if (!block || block.kind !== "steps") {
+            continue;
+        }
+
+        const itemIndex = block.items.findIndex(
+            (item) => item.kind === "tool_call" && item.toolCall.toolCallId === incoming.toolCallId,
+        );
+
+        if (itemIndex === -1) {
+            continue;
+        }
+
+        const existingItem = block.items[itemIndex];
+
+        if (!existingItem || existingItem.kind !== "tool_call") {
+            continue;
+        }
+
+        const nextItems = [
+            ...block.items.slice(0, itemIndex),
+            {
+                kind: "tool_call" as const,
+                toolCall: mergeToolCall(existingItem.toolCall, incoming),
+            },
+            ...block.items.slice(itemIndex + 1),
+        ];
+
+        return [
+            ...blocks.slice(0, blockIndex),
+            {
+                ...block,
+                items: nextItems,
+            },
+            ...blocks.slice(blockIndex + 1),
+        ];
+    }
+
+    const newItem: AgentStepItem = {
+        kind: "tool_call",
+        toolCall: mergeToolCall(undefined, incoming),
+    };
+    const lastBlock = blocks[blocks.length - 1];
+
+    if (lastBlock && lastBlock.kind === "steps") {
+        return [
+            ...blocks.slice(0, -1),
+            {
+                ...lastBlock,
+                items: [...lastBlock.items, newItem],
+            },
+        ];
+    }
+
+    return [
+        ...blocks,
+        {
+            kind: "steps",
+            id: generateUuid(),
+            items: [newItem],
+        },
+    ];
+}
+
+function mergeToolCall(
+    current: AcpToolCall | undefined,
+    incoming: Extract<AcpSessionUpdatePayload, { sessionUpdate: "tool_call" | "tool_call_update" }>,
+): AcpToolCall {
+    return {
         toolCallId: incoming.toolCallId,
         title: incoming.title ?? current?.title,
         kind: incoming.kind ?? current?.kind,
@@ -458,16 +627,6 @@ function upsertToolCall(
         rawInput: incoming.rawInput ?? current?.rawInput,
         rawOutput: incoming.rawOutput ?? current?.rawOutput,
     };
-
-    if (index === -1) {
-        return [...existingList, merged];
-    }
-
-    return [
-        ...existingList.slice(0, index),
-        merged,
-        ...existingList.slice(index + 1),
-    ];
 }
 
 function extractChunkText(content: unknown): string | null {

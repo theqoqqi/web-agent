@@ -1,5 +1,6 @@
 import { Loader } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { AgentStepItem } from "../acp/session-reducer";
 import type { AcpToolCall } from "../acp/types";
 import { pluralize } from "../lib/pluralize";
 import { Collapsible } from "./Collapsible";
@@ -7,34 +8,46 @@ import { ToolCallItem } from "./ToolCallItem";
 import styles from "./AgentSteps.module.css";
 
 export interface AgentStepsProps {
-    toolCalls: AcpToolCall[];
-    autoOpen?: boolean;
+    items: AgentStepItem[];
+    isGenerating: boolean;
     cwd: string;
 }
 
 export function AgentSteps({
-    toolCalls,
-    autoOpen = false,
+    items,
+    isGenerating,
     cwd,
 }: AgentStepsProps) {
     const [manualOpen, setManualOpen] = useState<boolean | null>(null);
+    const prevGeneratingRef = useRef(isGenerating);
 
-    if (toolCalls.length === 0) {
+    useEffect(() => {
+        if (prevGeneratingRef.current && !isGenerating) {
+            setManualOpen(null);
+        }
+
+        prevGeneratingRef.current = isGenerating;
+    }, [isGenerating]);
+
+    if (items.length === 0) {
         return null;
     }
 
-    const isOpen = manualOpen ?? autoOpen;
-    const isRunning = toolCalls.some(
+    const isOpen = manualOpen ?? isGenerating;
+    const toolCalls = items
+        .filter((item): item is Extract<AgentStepItem, { kind: "tool_call" }> => item.kind === "tool_call")
+        .map((item) => item.toolCall);
+    const hasThought = items.some((item) => item.kind === "thought");
+    const hasRunningTool = toolCalls.some(
         (item) => item.status === "pending" || item.status === "in_progress",
     );
-    const titleText = isRunning
-        ? getRunningTitle(toolCalls)
-        : `Выполнил ${pluralize(toolCalls.length, ["действие", "действия", "действий"])}`;
+    const isLive = isGenerating || hasRunningTool;
+    const titleText = buildStepsTitle(toolCalls, hasThought, isGenerating, hasRunningTool);
 
     const header = (
         <div className={styles.headerLeft}>
             <span className={styles.headerTitle}>{titleText}</span>
-            {isRunning && (
+            {isLive && (
                 <span className={styles.liveBadge}>
                     <Loader className={styles.liveSpinner} size={11} />
                     работает
@@ -52,16 +65,47 @@ export function AgentSteps({
             bodyClassName={styles.body}
         >
             <div className={styles.toolList}>
-                {toolCalls.map((toolCall) => (
-                    <ToolCallItem
-                        key={toolCall.toolCallId}
-                        toolCall={toolCall}
-                        cwd={cwd}
-                    />
-                ))}
+                {items.map((item) =>
+                    item.kind === "thought" ? (
+                        <p key={item.id} className={styles.thoughtItem}>
+                            {item.text}
+                        </p>
+                    ) : (
+                        <ToolCallItem
+                            key={item.toolCall.toolCallId}
+                            toolCall={item.toolCall}
+                            cwd={cwd}
+                        />
+                    ),
+                )}
             </div>
         </Collapsible>
     );
+}
+
+function buildStepsTitle(
+    toolCalls: AcpToolCall[],
+    hasThought: boolean,
+    isGenerating: boolean,
+    hasRunningTool: boolean,
+): string {
+    if (hasRunningTool) {
+        return getRunningTitle(toolCalls);
+    }
+
+    if (isGenerating) {
+        return toolCalls.length > 0 ? "Выполняю действия..." : "Размышляет...";
+    }
+
+    if (toolCalls.length > 0 && hasThought) {
+        return `Размышления и ${pluralize(toolCalls.length, ["действие", "действия", "действий"])}`;
+    }
+
+    if (toolCalls.length > 0) {
+        return `Выполнил ${pluralize(toolCalls.length, ["действие", "действия", "действий"])}`;
+    }
+
+    return "Размышления";
 }
 
 function getRunningTitle(toolCalls: AcpToolCall[]): string {

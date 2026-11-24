@@ -67,16 +67,116 @@ describe("sessionReducer", () => {
         expect(state.messages).toHaveLength(2);
         const assistant = state.messages[1];
         expect(assistant?.role).toBe("assistant");
-        expect(assistant?.thought).toBe("Думаю о файле");
-        expect(assistant?.content).toBe("Готово, проверено.");
-        expect(assistant?.toolCalls).toEqual([
-            {
-                toolCallId: "tc-1",
-                title: "Чтение файла",
-                status: "completed",
-                locations: [{ path: "/srv/main.ts", line: 10 }],
+        expect(assistant?.blocks).toHaveLength(2);
+        expect(assistant?.blocks[0]).toMatchObject({
+            kind: "steps",
+            items: [
+                { kind: "thought", text: "Думаю о файле" },
+                {
+                    kind: "tool_call",
+                    toolCall: {
+                        toolCallId: "tc-1",
+                        title: "Чтение файла",
+                        status: "completed",
+                        locations: [{ path: "/srv/main.ts", line: 10 }],
+                    },
+                },
+            ],
+        });
+        expect(assistant?.blocks[1]).toMatchObject({
+            kind: "text",
+            text: "Готово, проверено.",
+        });
+    });
+
+    test("сохраняет порядок добавления при чередовании размышлений, действий и текста", () => {
+        let state = createInitialSessionState("/srv");
+
+        state = sessionReducer(state, {
+            type: "SEND_USER_MESSAGE",
+            id: "u-1",
+            text: "Проверь проект",
+        });
+
+        state = sessionReducer(state, {
+            type: "SESSION_UPDATE",
+            update: {
+                sessionUpdate: "agent_thought_chunk",
+                content: { type: "text", text: "Шаг 1" },
             },
-        ]);
+        });
+        state = sessionReducer(state, {
+            type: "SESSION_UPDATE",
+            update: {
+                sessionUpdate: "tool_call",
+                toolCallId: "tc-1",
+                title: "Поиск",
+                status: "in_progress",
+            },
+        });
+        state = sessionReducer(state, {
+            type: "SESSION_UPDATE",
+            update: {
+                sessionUpdate: "agent_message_chunk",
+                content: { type: "text", text: "Нашёл файл. " },
+            },
+        });
+        state = sessionReducer(state, {
+            type: "SESSION_UPDATE",
+            update: {
+                sessionUpdate: "agent_thought_chunk",
+                content: { type: "text", text: "Шаг 2" },
+            },
+        });
+        state = sessionReducer(state, {
+            type: "SESSION_UPDATE",
+            update: {
+                sessionUpdate: "tool_call",
+                toolCallId: "tc-2",
+                title: "Чтение",
+                status: "completed",
+            },
+        });
+        state = sessionReducer(state, {
+            type: "SESSION_UPDATE",
+            update: {
+                sessionUpdate: "tool_call_update",
+                toolCallId: "tc-1",
+                status: "completed",
+            },
+        });
+        state = sessionReducer(state, {
+            type: "SESSION_UPDATE",
+            update: {
+                sessionUpdate: "agent_message_chunk",
+                content: { type: "text", text: "Готово." },
+            },
+        });
+
+        const assistant = state.messages[1];
+        expect(assistant?.blocks).toHaveLength(4);
+        expect(assistant?.blocks[0]).toMatchObject({
+            kind: "steps",
+            items: [
+                { kind: "thought", text: "Шаг 1" },
+                { kind: "tool_call", toolCall: { toolCallId: "tc-1", status: "completed" } },
+            ],
+        });
+        expect(assistant?.blocks[1]).toMatchObject({
+            kind: "text",
+            text: "Нашёл файл. ",
+        });
+        expect(assistant?.blocks[2]).toMatchObject({
+            kind: "steps",
+            items: [
+                { kind: "thought", text: "Шаг 2" },
+                { kind: "tool_call", toolCall: { toolCallId: "tc-2", status: "completed" } },
+            ],
+        });
+        expect(assistant?.blocks[3]).toMatchObject({
+            kind: "text",
+            text: "Готово.",
+        });
     });
 
     test("извлекает modes и models как при session/new, так и при session/load", () => {
@@ -195,13 +295,19 @@ describe("sessionReducer", () => {
         let windowView = selectVisibleMessages(state);
         expect(windowView.visibleMessages).toHaveLength(20);
         expect(windowView.hiddenCount).toBe(30);
-        expect(windowView.visibleMessages[0]?.content).toBe("msg-31");
+        expect(windowView.visibleMessages[0]?.blocks[0]).toMatchObject({
+            kind: "text",
+            text: "msg-31",
+        });
 
         state = sessionReducer(state, { type: "LOAD_MORE_HISTORY" });
         windowView = selectVisibleMessages(state);
         expect(windowView.visibleMessages).toHaveLength(40);
         expect(windowView.hiddenCount).toBe(10);
-        expect(windowView.visibleMessages[0]?.content).toBe("msg-11");
+        expect(windowView.visibleMessages[0]?.blocks[0]).toMatchObject({
+            kind: "text",
+            text: "msg-11",
+        });
 
         state = sessionReducer(state, { type: "LOAD_MORE_HISTORY" });
         windowView = selectVisibleMessages(state);
@@ -216,7 +322,10 @@ describe("sessionReducer", () => {
         windowView = selectVisibleMessages(state);
         expect(windowView.visibleMessages).toHaveLength(20);
         expect(windowView.hiddenCount).toBe(31);
-        expect(windowView.visibleMessages[19]?.content).toBe("Новое сообщение");
+        expect(windowView.visibleMessages[19]?.blocks[0]).toMatchObject({
+            kind: "text",
+            text: "Новое сообщение",
+        });
     });
 
     test("фиксирует authError флаг при -32000", () => {

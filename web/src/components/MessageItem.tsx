@@ -1,9 +1,8 @@
 import { Check, Copy } from "lucide-react";
 import { memo, useState } from "react";
-import type { ChatMessage } from "../acp/session-reducer";
+import type { ChatMessage, MessageBlock } from "../acp/session-reducer";
 import { copyText } from "../lib/clipboard";
 import { AgentSteps } from "./AgentSteps";
-import { Collapsible } from "./Collapsible";
 import { MarkdownView } from "./MarkdownView";
 import styles from "./MessageItem.module.css";
 
@@ -19,20 +18,16 @@ export const MessageItem = memo(function MessageItem({
     cwd,
 }: MessageItemProps) {
     const [copied, setCopied] = useState(false);
-    const [thoughtManualOpen, setThoughtManualOpen] = useState<boolean | null>(null);
     const isUser = message.role === "user";
-    const hasText = message.content.length > 0;
-    const autoOpenSteps = isGenerating && !hasText;
-    const isThoughtOpen = thoughtManualOpen ?? (isGenerating && !hasText && message.toolCalls.length === 0);
+    const copyableText = getCopyableText(message.blocks);
+    const hasCopyableText = copyableText.length > 0;
 
     async function handleCopyMessage() {
-        const textToCopy = message.content || message.thought;
-
-        if (!textToCopy) {
+        if (!copyableText) {
             return;
         }
 
-        const ok = await copyText(textToCopy);
+        const ok = await copyText(copyableText);
 
         if (!ok) {
             return;
@@ -51,32 +46,28 @@ export const MessageItem = memo(function MessageItem({
                 ].join(" ")}
             >
                 {isUser ? (
-                    <div>{message.content}</div>
+                    <div>{getPlainText(message.blocks)}</div>
                 ) : (
-                    <>
-                        {message.thought.length > 0 && (
-                            <Collapsible
-                                isOpen={isThoughtOpen}
-                                onToggle={() => setThoughtManualOpen(!isThoughtOpen)}
-                                header={<span className={styles.thoughtTitle}>Размышления</span>}
-                                className={styles.thoughtBox}
-                            >
-                                <p className={styles.thoughtText}>{message.thought}</p>
-                            </Collapsible>
-                        )}
-                        {message.toolCalls.length > 0 && (
+                    message.blocks.map((block) =>
+                        block.kind === "steps" ? (
                             <AgentSteps
-                                toolCalls={message.toolCalls}
-                                autoOpen={autoOpenSteps}
+                                key={block.id}
+                                items={block.items}
+                                isGenerating={isGenerating}
                                 cwd={cwd}
                             />
-                        )}
-                        {hasText && <MarkdownView content={message.content} cwd={cwd} />}
-                    </>
+                        ) : (
+                            <MarkdownView
+                                key={block.id}
+                                content={block.text}
+                                cwd={cwd}
+                            />
+                        ),
+                    )
                 )}
             </div>
 
-            {hasText && (
+            {hasCopyableText && (
                 <div className={styles.actions}>
                     <button
                         type="button"
@@ -92,3 +83,24 @@ export const MessageItem = memo(function MessageItem({
         </div>
     );
 });
+
+function getPlainText(blocks: MessageBlock[]): string {
+    return blocks
+        .filter((block): block is Extract<MessageBlock, { kind: "text" }> => block.kind === "text")
+        .map((block) => block.text)
+        .join("\n\n");
+}
+
+function getCopyableText(blocks: MessageBlock[]): string {
+    const text = getPlainText(blocks);
+
+    if (text.length > 0) {
+        return text;
+    }
+
+    return blocks
+        .flatMap((block) => (block.kind === "steps" ? block.items : []))
+        .filter((item) => item.kind === "thought")
+        .map((item) => item.text)
+        .join("\n\n");
+}

@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import type { ChatMessage } from "../src/acp/session-reducer";
+import type { AgentStepItem, ChatMessage } from "../src/acp/session-reducer";
 import { AgentSteps } from "../src/components/AgentSteps";
 import { ChatViewport } from "../src/components/ChatViewport";
 import { MessageItem } from "../src/components/MessageItem";
@@ -9,9 +9,13 @@ function createMessages(count: number): ChatMessage[] {
     return Array.from({ length: count }, (_, index) => ({
         id: `m-${index + 1}`,
         role: index % 2 === 0 ? "user" : "assistant",
-        content: `Сообщение ${index + 1}`,
-        thought: "",
-        toolCalls: [],
+        blocks: [
+            {
+                kind: "text",
+                id: `b-${index + 1}`,
+                text: `Сообщение ${index + 1}`,
+            },
+        ],
     }));
 }
 
@@ -24,7 +28,13 @@ describe("ChatViewport and MessageItem", () => {
         const visibleFirst = createMessages(20).map((m, i) => ({
             ...m,
             id: `m-${i + 11}`,
-            content: `Сообщение ${i + 11}`,
+            blocks: [
+                {
+                    kind: "text" as const,
+                    id: `b-${i + 11}`,
+                    text: `Сообщение ${i + 11}`,
+                },
+            ],
         }));
         const visibleAfter = createMessages(30);
         const onLoadMore = vi.fn();
@@ -90,9 +100,13 @@ describe("ChatViewport and MessageItem", () => {
             {
                 id: "m-4",
                 role: "assistant" as const,
-                content: "Новый стрим-чанк",
-                thought: "",
-                toolCalls: [],
+                blocks: [
+                    {
+                        kind: "text" as const,
+                        id: "b-4",
+                        text: "Новый стрим-чанк",
+                    },
+                ],
             },
         ];
 
@@ -156,46 +170,62 @@ describe("ChatViewport and MessageItem", () => {
         expect(screen.queryByRole("button", { name: /Вниз/i })).toBeNull();
     });
 
-    test("рендерит локации toolCall как ссылки /files?path=... и сохраняет ручное раскрытие AgentSteps при стриме", () => {
-        const runningCalls = [
+    test("держит AgentSteps развёрнутым во время генерации, сворачивает по завершении и рендерит /files?path=...", () => {
+        const runningItems: AgentStepItem[] = [
             {
-                toolCallId: "tc-1",
-                title: "Чтение файла",
-                status: "in_progress" as const,
-                locations: [{ path: "/srv/app.ts", line: 25 }],
+                kind: "thought",
+                id: "t-1",
+                text: "Анализирую файл",
+            },
+            {
+                kind: "tool_call",
+                toolCall: {
+                    toolCallId: "tc-1",
+                    title: "Чтение файла",
+                    status: "in_progress",
+                    locations: [{ path: "/srv/app.ts", line: 25 }],
+                },
             },
         ];
 
         const { rerender } = render(
             <AgentSteps
-                toolCalls={runningCalls}
-                autoOpen={false}
+                items={runningItems}
+                isGenerating={true}
                 cwd="/srv"
             />,
         );
 
-        const toggle = screen.getByRole("button");
-        expect(toggle).toHaveAttribute("aria-expanded", "false");
+        const toggleRunning = screen.getByRole("button");
+        expect(toggleRunning).toHaveAttribute("aria-expanded", "true");
+        expect(screen.getByText("Анализирую файл")).toBeInTheDocument();
 
-        fireEvent.click(toggle);
-        expect(toggle).toHaveAttribute("aria-expanded", "true");
+        const completedItems: AgentStepItem[] = [
+            runningItems[0]!,
+            {
+                kind: "tool_call",
+                toolCall: {
+                    toolCallId: "tc-1",
+                    title: "Чтение файла",
+                    status: "completed",
+                    locations: [{ path: "/srv/app.ts", line: 25 }],
+                },
+            },
+        ];
 
         rerender(
             <AgentSteps
-                toolCalls={[
-                    {
-                        ...runningCalls[0]!,
-                        status: "completed",
-                    },
-                ]}
-                autoOpen={false}
+                items={completedItems}
+                isGenerating={false}
                 cwd="/srv"
             />,
         );
 
-        expect(
-            screen.getByRole("button", { name: /Выполнил 1 действие/i }),
-        ).toHaveAttribute("aria-expanded", "true");
+        const toggleDone = screen.getByRole("button", { name: /Размышления и 1 действие/i });
+        expect(toggleDone).toHaveAttribute("aria-expanded", "false");
+
+        fireEvent.click(toggleDone);
+        expect(toggleDone).toHaveAttribute("aria-expanded", "true");
         const locationLink = screen.getByRole("link", { name: /app\.ts:25/i });
         expect(locationLink).toHaveAttribute("href", "/files?path=%2Fsrv%2Fapp.ts#L25");
         expect(locationLink).toHaveAttribute("target", "_blank");
@@ -217,9 +247,13 @@ describe("ChatViewport and MessageItem", () => {
                 message={{
                     id: "m-1",
                     role: "assistant",
-                    content: "Готовый ответ ассистента",
-                    thought: "",
-                    toolCalls: [],
+                    blocks: [
+                        {
+                            kind: "text",
+                            id: "b-1",
+                            text: "Готовый ответ ассистента",
+                        },
+                    ],
                 }}
                 isGenerating={false}
                 cwd="/srv"
