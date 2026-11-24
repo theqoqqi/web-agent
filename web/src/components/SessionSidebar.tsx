@@ -1,6 +1,6 @@
-import { Check, FolderInput, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Check, FolderInput, Moon, Pencil, Plus, Sun, Trash2, X } from "lucide-react";
 import { useState, type FormEvent } from "react";
-import type { StoredSession } from "../lib/storage";
+import type { StoredSession, ThemeMode } from "../lib/storage";
 import styles from "./SessionSidebar.module.css";
 
 export interface SessionSidebarProps {
@@ -9,6 +9,8 @@ export interface SessionSidebarProps {
     cwd: string;
     canLoadSession: boolean;
     isConnected: boolean;
+    theme: ThemeMode;
+    onToggleTheme: () => void;
     onChangeCwd: (cwd: string) => void;
     onNewSession: () => void;
     onSelectSession: (session: StoredSession) => void;
@@ -23,6 +25,8 @@ export function SessionSidebar({
     cwd,
     canLoadSession,
     isConnected,
+    theme,
+    onToggleTheme,
     onChangeCwd,
     onNewSession,
     onSelectSession,
@@ -250,6 +254,19 @@ export function SessionSidebar({
                         );
                     })
                 )}
+            </div>
+
+            <div className={styles.footer}>
+                <button
+                    type="button"
+                    className={styles.themeToggleBtn}
+                    aria-label="Переключить тему"
+                    title={theme === "dark" ? "Светлая тема" : "Тёмная тема"}
+                    onClick={onToggleTheme}
+                >
+                    {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+                    <span>{theme === "dark" ? "Светлая тема" : "Тёмная тема"}</span>
+                </button>
             </div>
         </aside>
     );

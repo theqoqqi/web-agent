@@ -1,4 +1,4 @@
-import { Menu, Moon, RefreshCw, Settings, Sun } from "lucide-react";
+import { Menu, RefreshCw, Settings } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { ConnectionStatus } from "../acp/session-reducer";
 import { useAcpSession } from "../hooks/useAcpSession";
@@ -81,6 +81,10 @@ export function AppShell() {
                         cwd={state.cwd}
                         canLoadSession={canLoadSession}
                         isConnected={isConnected}
+                        theme={theme}
+                        onToggleTheme={() =>
+                            setTheme((prev) => (prev === "dark" ? "light" : "dark"))
+                        }
                         onChangeCwd={updateCwd}
                         onNewSession={() => {
                             void startNewSession();
@@ -230,18 +234,6 @@ export function AppShell() {
                                 )}
                             </div>
                         )}
-
-                        <button
-                            type="button"
-                            className={styles.iconBtn}
-                            aria-label="Переключить тему"
-                            title={theme === "dark" ? "Светлая тема" : "Тёмная тема"}
-                            onClick={() =>
-                                setTheme((prev) => (prev === "dark" ? "light" : "dark"))
-                            }
-                        >
-                            {theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
-                        </button>
                     </div>
                 </header>
 

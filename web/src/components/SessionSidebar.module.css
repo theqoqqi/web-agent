@@ -276,6 +276,36 @@
     background: var(--error-bg);
 }
 
+.footer {
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+    border-top: 1px solid var(--border-default);
+    background: var(--bg-sidebar);
+    flex-shrink: 0;
+}
+
+.themeToggleBtn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--border-default);
+    border-radius: 8px;
+    background: var(--bg-surface);
+    color: var(--text-main);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.themeToggleBtn:hover {
+    background: var(--bg-surface-hover);
+    border-color: var(--border-strong);
+}
+
 @media (max-width: 768px) {
     .sidebar {
         position: fixed;
